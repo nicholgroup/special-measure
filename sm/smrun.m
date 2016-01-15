@@ -104,11 +104,9 @@ if isfield(scan,'consts') && ~isempty(scan.consts)
     smset(setchans, setvals);
 end
 
-buff = 0; 
 if isfield(scan, 'configfn')
     for i = 1:length(scan.configfn)
         scan = scan.configfn(i).fn(scan, scan.configfn(i).args{:});
-        buff = buff + ~isempty(strfind(func2str(scan.configfn(i).fn),'smabufconfig2'));  % check if buffered readout being used. 
     end    
 end
 
