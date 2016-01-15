@@ -644,9 +644,6 @@ for i = 1:totpoints
                 z = zeros(dim(end-1:end));
                 z(:, :) = subsref(data{dc}, s2);
                 set(disph(k), 'cdata', z);
-                 if ~isempty(disph(k).CData)                 
-                     disph(k).Parent.CLim = [min(disph(k).CData(:)), max(disph(k).CData(:))];
-                 end                    
             else                
                 set(disph(k), 'ydata', subsref(data{dc}, s2));
             end

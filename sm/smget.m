@@ -31,7 +31,7 @@ end
 if ishandle(999)
     str = get(smdata.chandisph, 'string');
     for k = 1:nchan
-        if length(data{k}) == 1 
+        if length(data{k}) == 0 
             str{channels(k)} = sprintf('%.5g', data{k});
         end
     end
