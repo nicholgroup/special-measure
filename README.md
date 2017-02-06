@@ -7,7 +7,10 @@ Forked from Yacoby Lab Special Measure
 1. Download and install git.
 2. First clone the repository.  Open the git command line. Use the "cd" command to navigate to the place you want to download the repo. Then type 
 `git clone https://github.com/nicholgroup/special-measure.git`
-3. Open matlab, and add the repo directory with all subfolders to your path.
+3. You need an instrument control toolbox. (i.e., the National Instruments or Tektronix drivers). This will typically be achieved in you install NI 488.2, for example.
+4. Open matlab, and add the repo directory with all subfolders to your path.
+5. Make sure the sm and sm/channels directories are in the path.
+6. Make smdata accessible from the workspace by typing `global smdata;` This is necessary only once per Matlab session, or after a `clear global` command.
 
 # Basic Github 
 Github allows us to work on the software as a team and keep track of changes made. To commit changes to the repo, open the git shell. To stage all changes, type
