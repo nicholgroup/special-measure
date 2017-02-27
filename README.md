@@ -13,7 +13,17 @@ Forked from Yacoby Lab Special Measure
 6. Make smdata accessible from the workspace by typing `global smdata;` This is necessary only once per Matlab session, or after a `clear global` command.
 
 # Basic Github 
-Github allows us to work on the software as a team and keep track of changes made. To commit changes to the repo, open the git shell. To stage all changes, type
+Github allows us to work on the software as a team and keep track of changes made. First, open the git shell. To tell the git shell who you are, type 
+
+`git config --global user.name` or `git config --global  user.email`
+
+where you should replace `user.name` or `user.email` with your github name or email address.
+
+If you want to make sure your local clone is up to date, pull in changes from the repository. Type
+
+`git pull`
+
+Suppose you made some changes and want to commit these changes to the repo. To stage all changes, type
 
 `git add -A`
 
@@ -26,6 +36,10 @@ Finally, to upload your changes to the server, type
 `git push origin master`
 
 Ordinarily, if you are making big changes, you should work in a separate branch, which can later be merged with the master branch in a pull request. In this case, before you commit, you should make and commit to a new branch using `git checkout`. That way, you can safely make changes without affecting the master. Once you are happy that all changes do not break any code, you can open a pull request.
+
+If working on a shared computer, you can remove your profile from the git shell by typing
+
+`git config --global --unset user.name` or `git config --global --unset user.email`
 
 See http://dont-be-afraid-to-commit.readthedocs.io/en/latest/git/commandlinegit.html, and many other github tutorials for more details.
 
