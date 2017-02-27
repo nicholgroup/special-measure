@@ -1,5 +1,5 @@
-function [] = smcKeithley236Config(ilim,nread)
-%function [] = smcKeithley236Config(ilim)
+function [] = smcKeithley236Init(ilim,nread)
+%function [] = smcKeithley236Init(ilim)
 %configures a Keithley236 Source meter for single-point voltage-source
 %measurements
 
