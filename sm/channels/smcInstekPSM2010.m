@@ -1,5 +1,5 @@
 function [val, rate] = smcInstekPSM2010(ico, val, rate)
-% driver for Instek PSM 2010
+% driver for Instek PSM 2010 current supply
 % channels for this instrument are 
 % 1: current
 % general operation codes are
