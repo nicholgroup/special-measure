@@ -102,7 +102,6 @@ for k = setchan'
     smdata.inst(instchan(k, 1)).cntrlfn([instchan(k, :), 1], valsScaled(k));
 end
 
-tramp = now;
 
 if ishandle(999)
     smdispchan(channels([rampchan; setchan]), vals([rampchan; setchan]));
@@ -153,10 +152,12 @@ smdata.chanvals(channels) = vals;
 
 % rampchans let the driver do the ramping, but don't return until correct
 % time has passed. 
+tramp = now;
+
 rampchan = rampchan(ramprate(rampchan) > 0); % For rampchans with ramprate < 0, the driver will ramp. 
 ramptime = ramptime(rampchan);
 if ~isempty(rampchan)
-    pause(max(ramptime) + 24*3600*(tramp - now)); 
+    pause(max(ramptime) + 24*3600*(tramp - now));    
     return; 
     % Next lines appear to use different method, querying the remainder of
     % ramping time through driver. However, not currently used. 
