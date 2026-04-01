@@ -6,6 +6,25 @@ Originally developed by Hendrik Bluhm and Vivek Venkatachalam. Licensed under th
 
 ---
 
+## Prerequisites
+
+- MATLAB R2014b or later
+- [Instrument Control Toolbox](https://www.mathworks.com/products/instrument.html) — required for VISA, GPIB, and Serial communication
+
+---
+
+## Repository Structure
+
+```
+special-measure/
+├── sm/          # Core framework: smrun, smset, smget, and ~41 supporting functions
+├── channels/    # Instrument drivers (~123 files, named smc*.m, one per instrument model)
+├── plot/        # Analysis and visualization utilities
+└── sm GUI/      # Optional GUIDE-based GUI (smgui.m)
+```
+
+---
+
 ## Overview
 
 The core workflow is:
@@ -40,18 +59,19 @@ data = smrun(scan, smnext('gate_sweep'));
 
 ## Core Functions
 
-| Function | Description |
-|---|---|
-| `smrun(scan, filename)` | Execute a scan. Loops over all points, sets/reads channels, saves data |
-| `smset(channels, vals)` | Set one or more channels to target values (with optional ramp rate) |
-| `smget(channels)` | Read current values from one or more channels |
-| `smopen(inst)` | Open hardware connections for instruments |
-| `smclose(inst)` | Close hardware connections |
-| `smloadinst(file)` | Load instrument configuration from a `.mat` file |
-| `smsaveinst(file)` | Save current instrument configuration |
-| `smnext(name)` | Return the next auto-incremented filename (e.g. `myscan_0042`) |
-| `smchanlookup(name)` | Resolve channel name string to numeric index |
-| `smscanpar(scan)` | Print a summary of scan parameters |
+| Function                                       | Description                                                            |
+| ---------------------------------------------- | ---------------------------------------------------------------------- |
+| `smrun(scan, filename)`                      | Execute a scan. Loops over all points, sets/reads channels, saves data |
+| `smset(channels, vals)`                      | Set one or more channels to target values (with optional ramp rate)    |
+| `smget(channels)`                            | Read current values from one or more channels                          |
+| `smopen(inst)`                               | Open hardware connections for instruments                              |
+| `smclose(inst)`                              | Close hardware connections                                             |
+| `smloadinst(file)`                           | Load instrument configuration from a `.mat` file                     |
+| `smsaveinst(file)`                           | Save current instrument configuration                                  |
+| `smnext(name)`                               | Return the next auto-incremented filename (e.g.`myscan_0042`)        |
+| `smchanlookup(name)`                         | Resolve channel name string to numeric index                           |
+| `smscanpar(scan, cntr, rng, npoints, loops)` | Adjust scan loop center, range, and point count                        |
+| `smprintscan(scan)`                          | Print a human-readable summary of scan parameters                      |
 
 ---
 
@@ -114,12 +134,38 @@ sm_gate_sweep_0042.mat
 ```
 
 Each file contains:
+
 - `data` — cell array of acquired data arrays (one per read channel per loop)
 - `scan` — the full scan definition used
 - `configvals` / `configch` — snapshot of configuration channel values at scan start
 - `smdata_novisa` — instrument registry (with VISA objects replaced by property structs)
 
 Use `smnext('label')` to get the next available filename and copy it to the clipboard.
+
+---
+
+## Plotting and Analysis
+
+The `plot/` directory contains standalone utilities for visualizing and post-processing scan data:
+
+| Function                              | Description                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `plotData(file)`                    | Primary plotting utility; auto-detects 1D vs 2D data and opens a file picker if no argument given |
+| `fitwrap(ctrl, x, y, beta0, model)` | Wrapper around `nlinfit` for nonlinear curve fitting with optional plot output                  |
+| `ana_avg(filename, opts)`           | Load, average, and summarize data from one or more scan files                                     |
+| `pptplot`                           | GUI dialog for exporting figures directly to a PowerPoint file                                    |
+
+---
+
+## GUI
+
+`sm GUI/smgui.m` provides a graphical interface for configuring instruments, building scans, and launching runs without writing scan structs by hand. Launch it with:
+
+```matlab
+smgui
+```
+
+The GUI initializes the `smaux` global variable on startup and provides interactive channel editing via `smguichannels`.
 
 ---
 
@@ -136,16 +182,17 @@ logsetfile('mylog.txt');     % set the active log file
 
 ## Keyboard Shortcuts During a Scan
 
-| Key | Action |
-|---|---|
-| `Escape` | Abort scan, save partial data, run cleanup function |
-| `Space` | Pause scan and drop into MATLAB debugger (`keyboard`); type `return` to resume |
+| Key        | Action                                                                             |
+| ---------- | ---------------------------------------------------------------------------------- |
+| `Escape` | Abort scan, save partial data, run cleanup function                                |
+| `Space`  | Pause scan and drop into MATLAB debugger (`keyboard`); type `return` to resume |
 
 ---
 
 ## Global State
 
-Special Measure uses two MATLAB global variables:
+Special Measure uses three MATLAB global variables:
 
 - `smdata` — instrument registry, channel definitions, current values, display handles
-- `smscan` — last-used scan struct (used when `smrun` is called with only a filename)
+- `smscan` — scan struct used as a fallback when `smrun` is called with only a filename; set by the GUI, not by `smrun` itself
+- `smaux` — auxiliary GUI state (data directory, PPT output file, run counter); populated by `smgui` on startup
