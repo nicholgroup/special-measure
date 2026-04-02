@@ -41,6 +41,8 @@ if nargin < 5
         pos = 1;
     end
 end
+
+
 smdata.channels(pos).name = name;
 smdata.channels(pos).instchan = [inst, channel];
 smdata.channels(pos).rangeramp = rangeramp;

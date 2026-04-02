@@ -196,3 +196,29 @@ Special Measure uses three MATLAB global variables:
 - `smdata` — instrument registry, channel definitions, current values, display handles
 - `smscan` — scan struct used as a fallback when `smrun` is called with only a filename; set by the GUI, not by `smrun` itself
 - `smaux` — auxiliary GUI state (data directory, PPT output file, run counter); populated by `smgui` on startup
+
+### `smdata` Fields
+
+| Field          | Description                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| `inst`         | Struct array of registered instruments. See [Instrument Struct](#instrument-struct) below.           |
+| `channels`     | Struct array of logical channels. Each entry has `.name`, `.instchan` ([inst_idx, chan_idx]), and `.rangeramp` ([min, max, ramprate, divider]). |
+| `chandisph`    | Handle to the uicontrol text object in figure 999 that displays live channel values (set by `sminitdisp`). |
+| `chanvals`     | Cached numeric values of all channels; updated by `smset`/`smget` and used to refresh the display.  |
+| `configch`     | Indices of channels whose values are snapshotted at scan start and saved in each data file.          |
+| `configfn`     | Function handle (or struct with `.fn`/`.args`) executed when `smrun` is called, before the scan starts. Also saved in each data file. |
+| `name`         | Human-readable label for the current experimental setup or session.                                  |
+| `file`         | Path to the currently loaded smdata configuration file; used by `smload` and `smcopy` to track the active config. |
+
+#### Instrument Struct
+
+Each `smdata.inst(i)` entry has:
+
+```
+.name       — human-readable instrument name
+.device     — device type string (used by smabufconfig2 and similar helpers)
+.cntrlfn    — function handle: cntrlfn([inst, chan, op], val, rate)
+.channels   — cell array of channel name strings for this instrument
+.data       — arbitrary instrument state (VISA object, calibration, buffer state, etc.)
+.datadim    — vector of output sizes per channel (1 = scalar; N = buffered array of length N)
+```

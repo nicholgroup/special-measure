@@ -93,11 +93,11 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
                 if ~iscell(d.scan.loops(1).setchan)
                     d.scan.loops(1).setchan={d.scan.loops(1).setchan};
                 end
-                xlabel(strjoin(d.scan.loops(1).setchan,','),'Interpreter','none');
+                xlabel(strjoin(string(d.scan.loops(1).setchan),','),'Interpreter','none');
                 if ~iscell(d.scan.loops(1).getchan)
-                    ylabel(d.scan.loops(1).getchan);
+                    ylabel(string(d.scan.loops(1).getchan));
                 else
-                    ylabel(d.scan.loops(1).getchan{j});
+                    ylabel(string(d.scan.loops(1).getchan{j}));
                 end
             end
                         
@@ -135,15 +135,15 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
             if ~iscell(d.scan.loops(1).setchan)
                 d.scan.loops(1).setchan={d.scan.loops(1).setchan};
             end
-            xlabel(strjoin(d.scan.loops(1).setchan,','),'Interpreter','none');
+            xlabel(strjoin(string(dd.scan.loops(1).setchan),','),'Interpreter','none');
             if ~iscell(d.scan.loops(2).setchan)
                 d.scan.loops(2).setchan={d.scan.loops(2).setchan};
             end
-            ylabel(strjoin(d.scan.loops(2).setchan,','),'Interpreter','none');
+            ylabel(strjoin(string(d.scan.loops(2).setchan),','),'Interpreter','none');
             title(filename{i},'Interpreter','none');
             set(gca,'YDir','norm');
             c=colorbar;
-            ylabel(c,d.scan.loops(1).getchan);
+            ylabel(c,string(d.scan.loops(1).getchan));
         end
     end
     
