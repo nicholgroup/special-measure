@@ -4,7 +4,14 @@
 .vscode/
 *.mat
 *.fig
+*.asv
+*.m~
+*.mex*
+slprj/
 
+# personal/non-code files in this repo
+Introduction.pptx
+github-git-cheat-sheet.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
