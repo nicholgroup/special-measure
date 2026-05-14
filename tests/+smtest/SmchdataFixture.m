@@ -30,11 +30,11 @@ classdef SmchdataFixture
             smdata.configfn = [];
             smdata.chanvals = [];
 
-            % Make sure examples/ (where smcqdot_setup lives) is on the path.
+            % Make sure src/sm/ and examples/ are on the path.
             repoRoot = fullfile(fileparts(mfilename('fullpath')), '..', '..');
             addpath(fullfile(repoRoot, 'examples'));
-            addpath(fullfile(repoRoot, 'sm'));
-            addpath(fullfile(repoRoot, 'channels'));
+            addpath(fullfile(repoRoot, 'src', 'sm'));
+            addpath(fullfile(repoRoot, 'src', 'utils', 'toolbox'));
 
             smcqdot_setup();
             sminitdisp();
