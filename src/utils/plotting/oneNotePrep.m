@@ -25,6 +25,13 @@ if isfield(opts,'figures')
     if ~isfield(opts,'file')
         opts.file=[];
     end
+
+    if ~isempty(opts.file)
+        [~, ~, ext] = fileparts(opts.file);
+        if isempty(ext)
+            opts.file = [opts.file '.mat'];
+        end
+    end
     
     if ~isfield(opts,'body')
         opts.body=[];

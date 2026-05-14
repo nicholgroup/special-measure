@@ -2,7 +2,7 @@
 .claude/
 .pytest_cache/
 .vscode/
-*.mat
+/*.mat
 *.fig
 *.asv
 *.m~

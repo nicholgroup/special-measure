@@ -6,16 +6,16 @@
 %addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'channels'));
 %addpath(fileparts(mfilename('fullpath')));   % examples/ folder
 
-addpath('sm\');
-addpath('channels');
-addpath('examples');
-addpath('plot');
+addpath('src\sm\');
+addpath('src\drivers\');
+addpath('examples\');
+addpath('src\utils\plotting\');
 
 rehash path;
 global smdata;
 smdata.inst     = struct([]);
 smdata.channels = struct([]);
-smdata.configch=[];
+smdata.configch=[1:10];
 smdata.configfn=[];
 %smdata.datadir  = 'C:/data/my_experiment';   % data files saved here
 %smdata.logfile  = 'C:/data/my_experiment/log.txt';
@@ -36,8 +36,8 @@ smset('Vsd', 1e-3);
 scan1D = struct();
 scan1D.loops(1).rng      = linspace(0, 1, npts);
 scan1D.loops(1).npoints  = npts;
-scan1D.loops(1).setchan  = smchanlookup({'S','SQ','A1','A2','T1','P','T2'});
-scan1D.loops(1).getchan  = smchanlookup('I');
+scan1D.loops(1).setchan  = {'S','SQ','A1','A2','T1','P','T2'};
+scan1D.loops(1).getchan  = 'I';
 scan1D.loops(1).ramptime = 0.5;
 scan1D.loops(1).prefn    = struct([]);
 scan1D.saveloop          = 1;
@@ -65,14 +65,14 @@ smget(smchanlookup('I'))
 scan2D = struct();
 scan2D.loops(1).rng      = linspace(0, 1, 64);
 scan2D.loops(1).npoints  = 64;
-scan2D.loops(1).setchan  = smchanlookup('S');
-scan2D.loops(1).getchan  = smchanlookup('I');
+scan2D.loops(1).setchan  = 'S';
+scan2D.loops(1).getchan  = 'I';
 scan2D.loops(1).ramptime = 0.1;
 scan2D.loops(1).prefn    = struct([]);
 
 scan2D.loops(2).rng      = linspace(0, 1, 32);
 scan2D.loops(2).npoints  = 32;
-scan2D.loops(2).setchan  = smchanlookup('SQ');
+scan2D.loops(2).setchan  = 'SQ';
 scan2D.loops(2).getchan  = [];
 scan2D.loops(2).ramptime = 0.1;
 
@@ -92,19 +92,19 @@ data = smrun(scan2D, smnext('channel_scan'));
 % smabufconfig2 calls smcqdot op=5 to set buffer size, wires up trigger
 % (op=3 per inner step) and arm (op=4 per outer step) automatically.
 
-npts=64;
+npts=16;
 scan2Dbuf = struct();
 scan2Dbuf.loops(1).rng      = linspace(0, 1, npts);
 scan2Dbuf.loops(1).npoints  = npts;
-scan2Dbuf.loops(1).setchan  = smchanlookup('S');
+scan2Dbuf.loops(1).setchan  = 'S';
 scan2Dbuf.loops(1).getchan  = [];
 scan2Dbuf.loops(1).ramptime = 0.001; %keep this short for this example to make the buffer work
 scan2Dbuf.loops(1).prefn    = struct([]);
 
 scan2Dbuf.loops(2).rng      = linspace(0, 1, npts);
 scan2Dbuf.loops(2).npoints  = npts;
-scan2Dbuf.loops(2).setchan  = smchanlookup('SQ');
-scan2Dbuf.loops(2).getchan  = smchanlookup('I_buf');
+scan2Dbuf.loops(2).setchan  = 'SQ';
+scan2Dbuf.loops(2).getchan  = 'I_buf';
 scan2Dbuf.loops(2).ramptime = 0.001; 
 
 scan2Dbuf.configfn.fn   = @smabufconfig2;
@@ -134,7 +134,7 @@ scan1Dshut = struct();
 scan1Dshut.loops(1).rng      = linspace(1, 0, npts);
 scan1Dshut.loops(1).npoints  = npts;
 scan1Dshut.loops(1).setchan  = [];   % filled per gate in loop below
-scan1Dshut.loops(1).getchan  = smchanlookup('I');
+scan1Dshut.loops(1).getchan  = 'I';
 scan1Dshut.loops(1).ramptime = 0.1;
 scan1Dshut.loops(1).prefn    = struct([]);
 scan1Dshut.saveloop          = 1;
