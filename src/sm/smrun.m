@@ -186,7 +186,10 @@ if nargin >= 2 && filename(2)~=':'
     if all(filename ~= '/') && all(filename ~= '\')
         filename = sprintf('sm_%s.mat', filename);
     end
-    
+
+    % Validate filename against naming rules (no periods, special chars, etc.)
+    smvalidateFilename(filename);
+
     str = '';
     %while (exist(filename, 'file') || exist([filename, '.mat'], 'file')) && ~strcmp(str, 'yes')
     %QHF 2020/12/01: exist() checks for all directories, not just current directory, so using isfile() instead

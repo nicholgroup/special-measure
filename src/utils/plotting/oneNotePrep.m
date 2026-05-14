@@ -27,8 +27,7 @@ if isfield(opts,'figures')
     end
 
     if ~isempty(opts.file)
-        [~, ~, ext] = fileparts(opts.file);
-        if isempty(ext)
+        if ~endsWith(opts.file, '.mat')
             opts.file = [opts.file '.mat'];
         end
     end
