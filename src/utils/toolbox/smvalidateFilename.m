@@ -37,6 +37,11 @@ function cleanName = smvalidateFilename(name)
 %   The check is applied to the bare name only — any directory prefix and
 %   the .mat extension are stripped before validation.
 
+% Accept both char vectors and string scalars
+if isstring(name)
+    name = char(name);
+end
+
 if isempty(name)
     cleanName = name;
     return
@@ -57,9 +62,6 @@ end
 % --- also handle periods *within* bareName that fileparts could not see
 % (fileparts only splits on the last dot) ---
 % e.g. 'sm_scan.v2.1' -> fname='sm_scan.v2', ext='.1'
-
-% Ensure bareName is a char vector so regexp always returns cell-of-char
-bareName = char(bareName);
 
 % Define the allowed pattern: letters, digits, underscore, hyphen
 forbidden = regexp(bareName, '[^A-Za-z0-9_\-]', 'match');
