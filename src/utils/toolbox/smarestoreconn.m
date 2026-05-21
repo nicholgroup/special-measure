@@ -1,4 +1,4 @@
-function smrestoreconn()
+function smarestoreconn()
 % SMRESTORECONN  Validate and restore dead instrument connections in smdata.
 %
 %   smrestoreconn()

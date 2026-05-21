@@ -1,7 +1,7 @@
-function smdata = smfillconnargs(smdata)
+function smafillconnargs()
 % SMFILLCONNARGS  Populate .data.fn / .data.args from live connection objects.
 %
-%   smdata = smfillconnargs(smdata)
+%   smfillconnargs()
 %
 %   For each smdata.inst(i) whose .data.inst field holds a live connection
 %   object, extracts the parameters needed to recreate it and writes:
@@ -23,6 +23,8 @@ function smdata = smfillconnargs(smdata)
 %       - .data is not a struct, or has no .inst field
 %       - .data.inst is empty or an invalid/deleted object
 %       - object type is not in the list above
+
+global smdata
 
 for i = 1:numel(smdata.inst)
     d = smdata.inst(i).data;

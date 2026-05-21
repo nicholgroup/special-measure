@@ -1,5 +1,5 @@
 classdef tSmvalidateFilename < matlab.unittest.TestCase
-% Tests for smvalidateFilename and its integration with smrun.
+% Tests for smavalidateFilename and its integration with smrun.
 %
 % Part 1 (TestTags: 'Unit'): Pure validator tests — no SM globals needed.
 % Part 2 (TestTags: 'Integration'): Pass filenames into smrun with the
@@ -13,7 +13,7 @@ classdef tSmvalidateFilename < matlab.unittest.TestCase
 
     methods (TestMethodSetup)
         function setup(tc)
-            % Ensure the toolbox (smvalidateFilename) is on the path
+            % Ensure the toolbox (smavalidateFilename) is on the path
             repoRoot = fullfile(fileparts(mfilename('fullpath')), '..');
             addpath(fullfile(repoRoot, 'src', 'utils', 'toolbox'));
         end
@@ -57,175 +57,175 @@ classdef tSmvalidateFilename < matlab.unittest.TestCase
     end
 
     % =====================================================================
-    %  Part 1: Unit tests for smvalidateFilename  (no SM globals needed)
+    %  Part 1: Unit tests for smavalidateFilename  (no SM globals needed)
     % =====================================================================
     methods (Test, TestTags = {'Unit'})
 
         % --- Valid names (should pass without error) ---
 
         function acceptsSimpleName(tc)
-            out = smvalidateFilename('my_scan_001');
+            out = smavalidateFilename('my_scan_001');
             tc.verifyEqual(out, 'my_scan_001');
         end
 
         function acceptsHyphen(tc)
-            out = smvalidateFilename('scan-2024-05-14');
+            out = smavalidateFilename('scan-2024-05-14');
             tc.verifyEqual(out, 'scan-2024-05-14');
         end
 
         function acceptsWithMatExtension(tc)
-            out = smvalidateFilename('sm_scan01.mat');
+            out = smavalidateFilename('sm_scan01.mat');
             tc.verifyEqual(out, 'sm_scan01.mat');
         end
 
         function acceptsPathPrefixWithCleanName(tc)
             name = fullfile('C:', 'data', 'scans', 'sm_test01.mat');
-            out = smvalidateFilename(name);
+            out = smavalidateFilename(name);
             tc.verifyEqual(out, name);
         end
 
         function acceptsEmpty(tc)
-            out = smvalidateFilename('');
+            out = smavalidateFilename('');
             tc.verifyEqual(out, '');
         end
 
         % --- Forbidden: period in the bare name ---
 
         function rejectsPeriodInName(tc)
-            tc.verifyError(@() smvalidateFilename('scan.v2'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan.v2'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsPeriodBeforeMat(tc)
-            tc.verifyError(@() smvalidateFilename('scan.v2.mat'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan.v2.mat'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsMultiplePeriods(tc)
-            tc.verifyError(@() smvalidateFilename('a.b.c.d'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('a.b.c.d'), ...
+                'smavalidateFilename:badChars');
         end
 
         % --- Forbidden: shell / OS meta-characters ---
 
         function rejectsAmpersand(tc)
-            tc.verifyError(@() smvalidateFilename('scan&data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan&data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsAsterisk(tc)
-            tc.verifyError(@() smvalidateFilename('scan*data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan*data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsQuestionMark(tc)
-            tc.verifyError(@() smvalidateFilename('scan?data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan?data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsSpace(tc)
-            tc.verifyError(@() smvalidateFilename('scan data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsSingleQuote(tc)
-            tc.verifyError(@() smvalidateFilename("scan'data"), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename("scan'data"), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsDoubleQuote(tc)
-            tc.verifyError(@() smvalidateFilename('scan"data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan"data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsAngleBrackets(tc)
-            tc.verifyError(@() smvalidateFilename('scan<data>'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan<data>'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsPipe(tc)
-            tc.verifyError(@() smvalidateFilename('scan|data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan|data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsSemicolon(tc)
-            tc.verifyError(@() smvalidateFilename('scan;data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan;data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsHash(tc)
-            tc.verifyError(@() smvalidateFilename('scan#1'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan#1'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsPercent(tc)
-            tc.verifyError(@() smvalidateFilename('scan%d'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan%d'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsParentheses(tc)
-            tc.verifyError(@() smvalidateFilename('scan(1)'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan(1)'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsBraces(tc)
-            tc.verifyError(@() smvalidateFilename('scan{1}'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan{1}'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsBrackets(tc)
-            tc.verifyError(@() smvalidateFilename('scan[1]'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan[1]'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsExclamation(tc)
-            tc.verifyError(@() smvalidateFilename('scan!data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan!data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsAtSign(tc)
-            tc.verifyError(@() smvalidateFilename('scan@data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan@data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsComma(tc)
-            tc.verifyError(@() smvalidateFilename('scan,data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan,data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsPlus(tc)
-            tc.verifyError(@() smvalidateFilename('scan+data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan+data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsEquals(tc)
-            tc.verifyError(@() smvalidateFilename('scan=data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan=data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsBacktick(tc)
-            tc.verifyError(@() smvalidateFilename('scan`data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan`data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsTilde(tc)
-            tc.verifyError(@() smvalidateFilename('scan~data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan~data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsCaret(tc)
-            tc.verifyError(@() smvalidateFilename('scan^data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan^data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsDollar(tc)
-            tc.verifyError(@() smvalidateFilename('scan$data'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('scan$data'), ...
+                'smavalidateFilename:badChars');
         end
 
         function rejectsMultipleForbiddenChars(tc)
-            tc.verifyError(@() smvalidateFilename('sc&n*.v2'), ...
-                'smvalidateFilename:badChars');
+            tc.verifyError(@() smavalidateFilename('sc&n*.v2'), ...
+                'smavalidateFilename:badChars');
         end
 
     end
@@ -240,7 +240,7 @@ classdef tSmvalidateFilename < matlab.unittest.TestCase
             cleanup = onCleanup(@() tc.teardownSmdata());
             scan = tc.makeScan('S', 'I', 5);
             tc.verifyError(@() smrun(scan, 'scan.v2'), ...
-                'smvalidateFilename:badChars');
+                'smavalidateFilename:badChars');
         end
 
         function smrunRejectsAmpersandFilename(tc)
@@ -248,7 +248,7 @@ classdef tSmvalidateFilename < matlab.unittest.TestCase
             cleanup = onCleanup(@() tc.teardownSmdata());
             scan = tc.makeScan('S', 'I', 5);
             tc.verifyError(@() smrun(scan, 'scan&test'), ...
-                'smvalidateFilename:badChars');
+                'smavalidateFilename:badChars');
         end
 
         function smrunRejectsSpaceFilename(tc)
@@ -256,7 +256,7 @@ classdef tSmvalidateFilename < matlab.unittest.TestCase
             cleanup = onCleanup(@() tc.teardownSmdata());
             scan = tc.makeScan('S', 'I', 5);
             tc.verifyError(@() smrun(scan, 'scan test'), ...
-                'smvalidateFilename:badChars');
+                'smavalidateFilename:badChars');
         end
 
         function smrunAcceptsCleanFilenameAndRuns(tc)

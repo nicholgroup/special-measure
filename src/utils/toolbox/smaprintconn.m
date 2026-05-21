@@ -1,7 +1,7 @@
-function smprintconn(smdata)
+function smaprintconn()
 % SMPRINTCONN  Print connection status for all instruments in smdata.
 %
-%   smprintconn(smdata)
+%   smprintconn()
 %
 %   For each smdata.inst(i) with a .data.inst connection field, prints:
 %     - instrument index, name, object type
@@ -12,6 +12,8 @@ function smprintconn(smdata)
 %   Instruments without a .data.inst field are listed as "no conn object".
 %
 %   See also: smfillconnargs, smrestoreconn.
+
+global smdata
 
 HDR_FMT = '%-4s  %-16s  %-12s  %-8s  %-36s  %s\n';
 ROW_FMT = '%-4s  %-16s  %-12s  %-8s  %-36s  %s\n';

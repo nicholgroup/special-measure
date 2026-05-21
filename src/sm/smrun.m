@@ -188,7 +188,7 @@ if nargin >= 2 && filename(2)~=':'
     end
 
     % Validate filename against naming rules (no periods, special chars, etc.)
-    smvalidateFilename(filename);
+    smavalidateFilename(filename);
 
     str = '';
     %while (exist(filename, 'file') || exist([filename, '.mat'], 'file')) && ~strcmp(str, 'yes')

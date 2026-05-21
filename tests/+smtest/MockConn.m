@@ -4,7 +4,7 @@ classdef MockConn < handle
 %   obj = smtest.MockConn('Type','visa-gpib', 'RsrcName','GPIB0::1::INSTR')
 %
 %   Supports dot-property access and get(obj,'Prop') — enough to satisfy
-%   smfillconnargs, smprintconn, and smrestoreconn without real hardware.
+%   smafillconnargs, smaprintconn, and smarestoreconn without real hardware.
 
     properties
         Type         = ''
