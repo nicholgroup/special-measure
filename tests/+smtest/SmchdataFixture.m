@@ -40,6 +40,12 @@ classdef SmchdataFixture
 
             smcqdot_setup();
             sminitdisp();
+
+            % Close the channel-display figure so smdispchan's drawnow
+            % does not block during automated tests.
+            if ishandle(999)
+                close(999);
+            end
         end
 
         function wipe()
