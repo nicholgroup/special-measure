@@ -18,7 +18,7 @@ The deep SM knowledge (scan struct, smrun, drivers, buffered acq, etc.) lives in
 
 - Naming: drivers are `smc<Model>.m`; tests are `tSm<Topic>.m`; auxiliary/utility functions in `src/utils/toolbox/` are `sma<verb><Noun>.m` (prefix `sma` for auxiliary)
 - Scan filenames passed to `smrun` must contain only letters, digits, underscore (`_`), and hyphen (`-`). Enforced by `src/utils/toolbox/smavalidateFilename.m`.
-- Test path setup lives in `tests/+smtest/SmchdataFixture.m`. All `src/` subdirectories needed by tests (`src/sm/`, `src/drivers/`, `src/utils/toolbox/`) must be registered there — not in individual test files.
+- Test path setup lives in `tests/+smtest/SmchdataFixture.m`, in the static `addSrcPaths()` method. All `src/` subdirectories needed by tests (`src/sm/`, `src/drivers/`, `src/utils/toolbox/`, `src/utils/analysis/`) must be registered there — not in individual test files. `initWithQdot()` calls `addSrcPaths()`; tests that need no SM globals (pure numerics) call `addSrcPaths()` on its own.
 - Tests are auto-discovered by `tests/runAllTests.m` via `TestSuite.fromFolder`. Place new test classes directly in `tests/` (not in subdirectories) to be included.
 - MATLAB string vs char: utility functions that accept user-facing text input should convert string scalars to char at the top (`if isstring(x), x = char(x); end`) before passing to `fileparts`, `regexp`, `unique`, or `strjoin`.
 
@@ -68,3 +68,26 @@ The deep SM knowledge (scan struct, smrun, drivers, buffered acq, etc.) lives in
 - `sminitdisp` creates figure 999 for channel display; `smdispchan`'s `drawnow` will hang automated tests unless the figure is closed. Always close figure 999 in test fixtures.
 - When testing instrument connection code without hardware, use `smtest.MockConn` — it supports all properties needed by the `sma*` connection utilities.
 - Toolbox auxiliary functions use `global smdata` directly (SM convention) — tests must set the global before calling them and clean it up in teardown.
+
+### 2026-08-25 — Residual orientation bug in the fitting wrappers, and first analysis tests
+
+**Task**: Confirm a fix to `mfitwrapcon`, where `err` was becoming a square matrix instead of a vector. Then clean up `examples/fit_examples.m` and add test coverage for the fitting wrappers.
+
+**What went wrong**:
+
+1. `mfitwrap`/`mfitwrapcon` built the residual by *horizontal* concatenation (`err = [err (fd-y)./sqrt(sy)]`) and transposed once at the end (`err=err'`). This only worked when `fd`, `y`, and `sy` were all row vectors. When the model returned a column and the data was a row (or vice versa), implicit expansion produced an N×N residual matrix. **`lsqnonlin` accepts array-valued residuals**, so it ran to completion and returned a plausible but wrong answer — no error, no warning. Decade-old latent bug, not a regression.
+2. The same pattern existed in `mfitwrapcon`'s `nofit` branch, where `chisq=mean(err)` then returned a row vector of column means instead of a scalar.
+3. `isfield(model(i),'yfn')` is true for *every* element of a struct array if *any* element defines the field. Calling an empty `model(i).yfn` as a function errors. The file's own `pt` checks already used the safer `isfield(...) && ~isempty(...)` form.
+
+**Fixes applied**:
+
+1. Both wrappers now accumulate vertically with explicit column coercion: `err = [err; (fd(:)-y(:))./sqrt(sy(:))]`, and the trailing `err=err'` is removed. These two changes are a pair — removing one without the other flips the orientation back.
+2. `mfitwrapcon`'s `nofit` branch uses `err = [err; (fd(:)-y(:)).^2]`.
+3. All four `yfn` guards tightened to `isfield(...) && ~isempty(model(i).yfn)`.
+4. Added `tests/tSmFitwrap.m` (14 tests) and split `SmchdataFixture.addSrcPaths()` out of `initWithQdot()` so pure-numerics tests can get paths without touching `global smdata`.
+
+**Key takeaways**:
+- `(fd(:)-y(:))` is deliberate: a genuine length mismatch now throws instead of silently broadcasting. Do not "fix" it back to `fd-y`.
+- Both wrappers default `opts` to `'plfit plinit optimplot'`, which opens figures 60–63 and calls `drawnow`. **Every test must pass `opts` explicitly** (`''` works) or it will hang the suite — the same class of failure as the figure-999 hang above.
+- `mfitwrapcon`'s `nofit` branch never assigns `cov`, so callers on that path may request at most two outputs.
+- `examples/fit_examples.m` was cut from 1276 to ~250 lines: 20 of 26 local functions were unreachable, and `plotResult`/`predict` were stale copies indexing a parameter layout the script no longer uses. A `hbar = h/2*pi` typo (i.e. `h*pi/2`) in the broadening kernel was corrected to `h/(2*pi)`.
