@@ -22,6 +22,7 @@ special-measure/
     ├── drivers/    # Instrument drivers (~123 files, named smc*.m, one per instrument model)
     ├── utils
         ├── plotting/        # plotting utilities
+        ├── toolbox/        # sma utilities
         └── analysis/       # Analysis utilities
 ├── tests/
 ├── examples/

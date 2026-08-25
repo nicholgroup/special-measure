@@ -119,7 +119,7 @@ for i=1:length(data)
     else
         sy=data(i).vy;
     end
-    if isfield(model(i),'yfn')
+    if isfield(model(i),'yfn') && ~isempty(model(i).yfn)
         [y,sy]=model(i).yfn(p,data(i).y,sy);
         if any(sy < 0)
             error('Negative variance');            
@@ -128,7 +128,8 @@ for i=1:length(data)
         y=data(i).y;
     end
     fd=model(i).fn(pm, data(i).x);
-    err = [ err (fd-y)./sqrt(sy) ];    
+    %err = [ err (fd-y)./sqrt(sy) ];
+    err = [ err; (fd(:)-y(:))./sqrt(sy(:)) ];
     if any(imag(err) ~= 0)
         error('Imaginary error');
     end
@@ -162,7 +163,7 @@ end
 if doplot
     drawnow;
 end
-err=err';
+%err=err';
 if ~isempty(strfind(opts,'robust'))
   err = err ./ sqrt(abs(err));  % robust fit.
 end
