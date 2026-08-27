@@ -1,4 +1,4 @@
-function [ out ] = plotData( file )
+function [ out ] = plotData2( file )
 %plotData(file) attempts to nicely plot the data in a file.
 % function [ out ] = plotData( file )
 % file is an optional filename to plot, and out contains some processed
@@ -76,7 +76,12 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
     if size(d.data{1},2)==1 || size(d.data{1},1)==1 && ~pulse%1D dataset
         for i=1:length(file)
             d=load(file{i});
-            
+            % MAG 8/27/26
+            if isfield(d, 'pyloops') && ~isempty(d.pyloops)
+                loops_struct = d.pyloops;
+            else
+                loops_struct = d.scan.loops;
+            end
             [filepath{i}, filename{i}, ext{i}] = fileparts(file{i});
             if ~iscell(loops_struct(1).getchan)
                 loops_struct(1).getchan={loops_struct(1).getchan};
@@ -124,7 +129,12 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
         
         for i=1:length(file)
             d=load(file{i});
-            
+            % MAG 8/27/26
+            if isfield(d, 'pyloops') && ~isempty(d.pyloops)
+                loops_struct = d.pyloops;
+            else
+                loops_struct = d.scan.loops;
+            end
             [filepath{i}, filename{i}, ext{i}] = fileparts(file{i});
             figInd=222+i-1;
             figure(figInd); clf;
