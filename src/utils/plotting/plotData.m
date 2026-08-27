@@ -1,4 +1,4 @@
-function [ out ] = plotData2( file )
+function [ out ] = plotData( file )
 %plotData(file) attempts to nicely plot the data in a file.
 % function [ out ] = plotData( file )
 % file is an optional filename to plot, and out contains some processed
