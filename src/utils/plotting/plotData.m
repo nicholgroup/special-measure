@@ -39,16 +39,25 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
 %     end 
     out=struct;
     d=load(file{1});
-    
-    if ~iscell(d.scan.loops(1).getchan)
-        d.scan.loops(1).getchan={d.scan.loops(1).getchan};
+
+    % MAG 8/27/26: replaced all references to d.scan.loops with
+    % loops_struct defined below. Added condition to accept smrunpyfile
+    % output d.pyloops.
+    if isfield(d, 'pyloops') && ~isempty(d.pyloops)
+        loops_struct = d.pyloops;
+    else
+        loops_struct = d.scan.loops;
+    end
+
+    if ~iscell(loops_struct(1).getchan)
+        loops_struct(1).getchan={loops_struct(1).getchan};
     end
     
     filepath = {}; filename = {}; ext = {};
     
     pulse=0;
     
-    if isfield(d.scan,'data')
+    if isfield(d, 'scan') && isfield(d.scan,'data') % MAG 8/27/26 added first conditional
         if isfield(d.scan.data,'pulsegroups')
             figInd=222;
             figure(figInd); clf;
@@ -67,17 +76,22 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
     if size(d.data{1},2)==1 || size(d.data{1},1)==1 && ~pulse%1D dataset
         for i=1:length(file)
             d=load(file{i});
-            
+            % MAG 8/27/26
+            if isfield(d, 'pyloops') && ~isempty(d.pyloops)
+                loops_struct = d.pyloops;
+            else
+                loops_struct = d.scan.loops;
+            end
             [filepath{i}, filename{i}, ext{i}] = fileparts(file{i});
-            if ~iscell(d.scan.loops(1).getchan)
-                d.scan.loops(1).getchan={d.scan.loops(1).getchan};
+            if ~iscell(loops_struct(1).getchan)
+                loops_struct(1).getchan={loops_struct(1).getchan};
             end
             
             figInd=222;
-            for j=1:length(d.scan.loops(1).getchan)
+            for j=1:length(loops_struct(1).getchan)
                 figure(figInd+j-1);
                 
-                xvals=linspace(d.scan.loops(1).rng(1),d.scan.loops(1).rng(2),d.scan.loops(1).npoints);
+                xvals=linspace(loops_struct(1).rng(1),loops_struct(1).rng(2),loops_struct(1).npoints);
                 yvals=(d.data{j});
                 plot(xvals,yvals,[ctab{i} styletab{i}],'DisplayName',file{i});
                 hold on;
@@ -90,14 +104,14 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
                 
                 l=legend(filename,'Interpreter','none');
                 %JMN added cell check and strjoin
-                if ~iscell(d.scan.loops(1).setchan)
-                    d.scan.loops(1).setchan={d.scan.loops(1).setchan};
+                if ~iscell(loops_struct(1).setchan)
+                    loops_struct(1).setchan={loops_struct(1).setchan};
                 end
-                xlabel(strjoin(d.scan.loops(1).setchan,','),'Interpreter','none');
-                if ~iscell(d.scan.loops(1).getchan)
-                    ylabel(d.scan.loops(1).getchan);
+                xlabel(strjoin(loops_struct(1).setchan,','),'Interpreter','none');
+                if ~iscell(loops_struct(1).getchan)
+                    ylabel(loops_struct(1).getchan);
                 else
-                    ylabel(d.scan.loops(1).getchan{j});
+                    ylabel(loops_struct(1).getchan{j});
                 end
             end
                         
@@ -108,19 +122,24 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
         end
         
         %     l=legend(file,'Interpreter','none');
-        %     xlabel(d.scan.loops(1).setchan);
-        %     ylabel(d.scan.loops(1).getchan{j});
+        %     xlabel(loops_struct(1).setchan);
+        %     ylabel(loops_struct(1).getchan{j});
         
     elseif size(d.data{1},2)>1 && ~pulse
         
         for i=1:length(file)
             d=load(file{i});
-            
+            % MAG 8/27/26
+            if isfield(d, 'pyloops') && ~isempty(d.pyloops)
+                loops_struct = d.pyloops;
+            else
+                loops_struct = d.scan.loops;
+            end
             [filepath{i}, filename{i}, ext{i}] = fileparts(file{i});
             figInd=222+i-1;
             figure(figInd); clf;
-            xvals=linspace(d.scan.loops(1).rng(1),d.scan.loops(1).rng(2),d.scan.loops(1).npoints);
-            yvals=linspace(d.scan.loops(2).rng(1),d.scan.loops(2).rng(2),d.scan.loops(2).npoints);
+            xvals=linspace(loops_struct(1).rng(1),loops_struct(1).rng(2),loops_struct(1).npoints);
+            yvals=linspace(loops_struct(2).rng(1),loops_struct(2).rng(2),loops_struct(2).npoints);
             if length(size(d.data{1}))==3
                 imagesc(xvals,yvals,squeeze(nanmean(d.data{1},1)));
             elseif length(size(d.data{1}))==2
@@ -132,18 +151,18 @@ if ~file{1}(1)==0 %EJC 2019/09/05 added so if don't select file it just breaks
             out(i).xvals=xvals;
             out(i).yvals=yvals;
             %JMN add cell checking and strjoin
-            if ~iscell(d.scan.loops(1).setchan)
-                d.scan.loops(1).setchan={d.scan.loops(1).setchan};
+            if ~iscell(loops_struct(1).setchan)
+                loops_struct(1).setchan={loops_struct(1).setchan};
             end
-            xlabel(strjoin(d.scan.loops(1).setchan,','),'Interpreter','none');
-            if ~iscell(d.scan.loops(2).setchan)
-                d.scan.loops(2).setchan={d.scan.loops(2).setchan};
+            xlabel(strjoin(loops_struct(1).setchan,','),'Interpreter','none');
+            if ~iscell(loops_struct(2).setchan)
+                loops_struct(2).setchan={loops_struct(2).setchan};
             end
-            ylabel(strjoin(d.scan.loops(2).setchan,','),'Interpreter','none');
+            ylabel(strjoin(loops_struct(2).setchan,','),'Interpreter','none');
             title(filename{i},'Interpreter','none');
             set(gca,'YDir','norm');
             c=colorbar;
-            ylabel(c,d.scan.loops(1).getchan);
+            ylabel(c,loops_struct(1).getchan);
         end
     end
     
