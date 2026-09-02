@@ -309,10 +309,10 @@ function data = smrunpyfile(config, filename)
     if isfield(config, 'print_stdout') && config.print_stdout
         % Print stdout to terminal
         fprintf("BEGIN PYTHON OUTPUT:\n");
-        if endsWith(str, newline)
-            fprintf(2,'%s',d.stdout);
+        if endsWith(stdout, newline)
+            fprintf(2,'%s',stdout);
         else
-            fprintf(2,'%s\n',d.stdout);
+            fprintf(2,'%s\n',stdout);
         end
         fprintf("END PYTHON OUTPUT\n");
     end
