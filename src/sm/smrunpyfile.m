@@ -305,7 +305,17 @@ function data = smrunpyfile(config, filename)
         warning('smrunpyfile:runtime', "%s may have exited with error (exit code = %d).", config.input, statuscode);
         save(filename, 'config', 'snapshot', 'configvals', 'configdata', 'configch','smdata_novisa', 'data', 'pyloops', 'stdout', 'env');
     end
-    % fprintf('%s\n',d.stdout); % Print stdout to terminal
+    %% Print Python output to stream
+    if isfield(config, 'print_stdout') && config.print_stdout
+        % Print stdout to terminal
+        fprintf("BEGIN PYTHON OUTPUT:\n");
+        if endsWith(str, newline)
+            fprintf(2,'%s',d.stdout);
+        else
+            fprintf(2,'%s\n',d.stdout);
+        end
+        fprintf("END PYTHON OUTPUT\n");
+    end
     %% Read Python/Matlab IO stream
     % Currently just uses standard output stream (stdout) to receive info
     % from Python. If we want to change this in the future, pipe output to
