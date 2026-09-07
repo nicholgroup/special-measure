@@ -300,22 +300,28 @@ function data = smrunpyfile(config, filename)
     end
     %% Run Python file in the conda environment
     % Note that Python session inherits Matlab's working directory.
-    [statuscode, stdout] = system("conda run -n " + envname + " python " + pyfilepath);
+    if isfield(config, 'print_stdout') && config.print_stdout
+        fprintf(2,"BEGIN PYTHON OUTPUT\n");
+        [statuscode, stdout] = system("conda run --no-capture-output -n " + envname + " python -u " + pyfilepath, "-echo");
+        fprintf(2,"END PYTHON OUTPUT\n");
+    else
+        [statuscode, stdout] = system("conda run -n " + envname + " python " + pyfilepath);
+    end
     if statuscode ~= 0
         warning('smrunpyfile:runtime', "%s may have exited with error (exit code = %d).", config.input, statuscode);
         save(filename, 'config', 'snapshot', 'configvals', 'configdata', 'configch','smdata_novisa', 'data', 'pyloops', 'stdout', 'env');
     end
     %% Print Python output to stream
-    if isfield(config, 'print_stdout') && config.print_stdout
-        % Print stdout to terminal
-        fprintf("BEGIN PYTHON OUTPUT:\n");
-        if endsWith(stdout, newline)
-            fprintf(2,'%s',stdout);
-        else
-            fprintf(2,'%s\n',stdout);
-        end
-        fprintf("END PYTHON OUTPUT\n");
-    end
+    % if isfield(config, 'print_stdout') && config.print_stdout
+    %     % Print stdout to terminal
+    %     fprintf("BEGIN PYTHON OUTPUT\n");
+    %     if endsWith(stdout, newline)
+    %         fprintf(2,'%s',stdout);
+    %     else
+    %         fprintf(2,'%s\n',stdout);
+    %     end
+    %     fprintf("END PYTHON OUTPUT\n");
+    % end
     %% Read Python/Matlab IO stream
     % Currently just uses standard output stream (stdout) to receive info
     % from Python. If we want to change this in the future, pipe output to
