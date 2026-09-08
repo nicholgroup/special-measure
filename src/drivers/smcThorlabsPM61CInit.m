@@ -1,5 +1,5 @@
 function pm = smcThorlabsPM61CInit(visa_address)
-% smcThorlabsPM61CInit_old  Open a visa() connection to the PM61C.
+% smcThorlabsPM61CInit  Open a visa() connection to the PM61C.
 % Uses the old MATLAB VISA API (visa/fopen/fprintf/query) so smopen can
 % reopen it after loading smdata from disk.
 %
@@ -10,6 +10,11 @@ function pm = smcThorlabsPM61CInit(visa_address)
 
 pm = visa('ni', visa_address);
 pm.Timeout = 5;
+% FETC:ARR? returns at most 100 records per call. Each response contains
+% a 4-byte count followed by 100 [uint32 timestamp, float32 power]
+% records. Configure binary byte order and buffer size before opening.
+pm.InputBufferSize = 64 * 1024;
+pm.ByteOrder = 'littleEndian';
 fopen(pm);
 
 idn = query(pm, '*IDN?');
@@ -21,5 +26,6 @@ fprintf(pm, 'SENS:POW:UNIT W');       % unit = Watts
 fprintf(pm, 'SENS1:AVER 1');          % averaging = 1 (1 kHz)
 fprintf(pm, 'INP1:FILT 0');           % full bandwidth
 fprintf(pm, 'SENS:POW:RANG:AUTO 1');  % auto-range on
+fprintf(pm, 'SENS1:FREQ:MODE CW');     % Scope Mode requires CW
 
 end

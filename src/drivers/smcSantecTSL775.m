@@ -18,9 +18,13 @@ function [val] = smcSantecTSL775(ico, val, rate)
     %          wavelength to val (forces continuous one-way sweep mode,
     %          see note below); rate is in nm/s and is snapped to the
     %          nearest instrument-supported sweep speed
-    %          {0.5,1,2,5,10,20,50,100,200}. rate<0: program the sweep
-    %          but do not start it (trigger separately with ico(3)=3) --
-    %          used by smset for buffered/triggered scans.
+    %          {0.5,1,2,5,10,20,50,100,200}.
+    %          rate>0: start the sweep and BLOCK until it has fully
+    %          settled, then return 0 (so smset adds no further wait).
+    %          rate<0: program the sweep but do not start it (trigger
+    %          separately with ico(3)=3) and return the expected ramp
+    %          time without waiting -- used by smset for buffered/
+    %          triggered scans.
     %   2  - Power (dBm)          (get/set)
     %   3  - PowerActual (dBm)    (get only, monitored optical power)
     %   4  - Output (0/1)         (get/set: laser output on/off)
@@ -29,12 +33,20 @@ function [val] = smcSantecTSL775(ico, val, rate)
     %   7  - SweepSpeed (nm/s)    (get/set, snapped to nearest of
     %                              {0.5,1,2,5,10,20,50,100,200})
     %   8  - SweepMode            (get/set: 0=step 1-way, 1=cont 1-way,
-    %                              2=step 2-way, 3=cont 2-way)
+    %                              2=step 2-way, 3=cont 2-way. In the
+    %                              TWO-WAY modes a "cycle" is one
+    %                              traversal, alternating direction --
+    %                              so N round trips means SweepCycles =
+    %                              2N, and an odd count finishes at
+    %                              SweepStop rather than back at
+    %                              SweepStart. Verified on hardware.)
     %   9  - SweepDwell (s)       (get/set, step-mode wait between steps)
-    %   10 - SweepCycles          (get/set: sweep repetition count --
-    %                              only takes effect via SweepRepeat,
-    %                              channel 13; SweepState always runs a
-    %                              single scan regardless of this value)
+    %   10 - SweepCycles          (get/set: sweep repetition count.
+    %                              Applies to BOTH SweepRepeat (13) and
+    %                              a plain SweepState=1 (11) -- contrary
+    %                              to the manual; see the note at case 1.
+    %                              A channel-1 move forces this to 1 and
+    %                              does not restore it.)
     %   11 - SweepState           (get: 0=stopped,1=running,3=standby,
     %                              4=preparing; set: 0=stop,1=start
     %                              single scan)
@@ -67,8 +79,32 @@ function [val] = smcSantecTSL775(ico, val, rate)
     %                              500000 points.)
     %   19 - ReadoutPower (dBm)   (get only: internal power-monitor log
     %                              from the last sweep, vector, aligned
-    %                              point-for-point with channel 18)
+    %                              point-for-point with channel 18. Sent
+    %                              as 0.001 dB integer counts, not IEEE
+    %                              floats -- see the note at case 19.)
     %   20 - ReadoutPoints        (get only: number of logged points)
+    %   21 - SweepDelay (s)       (get/set: wait between consecutive
+    %                              scans of a multi-cycle run. Persistent
+    %                              on the instrument and a silent source
+    %                              of dead time -- see the note at case
+    %                              21; Init zeroes it on connect.)
+    %   22 - SweepCount           (get only: scans completed in the
+    %                              current run; counts each leg in the
+    %                              two-way modes)
+    %   23 - TrigInExternal       (get/set: 0=disable, 1=enable external
+    %                              trigger input on the rear BNC)
+    %   24 - TrigInActive         (get/set: 0=rising edge, 1=falling)
+    %   25 - TrigInStandby        (get/set: 0=normal, 1=trigger standby
+    %                              -- the laser parks in SweepState 3
+    %                              waiting to be triggered instead of
+    %                              sweeping on command)
+    %   26 - TrigThrough          (get/set: 0=off, 1=replicate the input
+    %                              trigger on the output port. Leave off
+    %                              when the laser is the trigger source.)
+    %   27 - SoftTrigger          (trigger only, ico(3)=3: releases a
+    %                              sweep parked in trigger standby, via
+    %                              :TRIG:INP:SOFT. NOT the same as
+    %                              channel 1's ico(3)=3 -- see case 27.)
 % ico(3): 0=get, 1=set, 3=trigger (channel 1: start programmed sweep;
 %         channel 13: start repeat scan), 2=query remaining ramp time
 %         (channel 1 only)
@@ -81,8 +117,9 @@ function [val] = smcSantecTSL775(ico, val, rate)
 % e.g. for a DAQ-triggered buffered scan synchronized to an external
 % digitizer. Channel 1's own point-to-point ramp always forces
 % SweepMode=1 (continuous one-way) so a plain smset never bounces back
-% past the target -- it does not touch or restore whatever SweepMode
-% you configured on channels 5-10.
+% past the target, and SweepCycles=1 so it traverses exactly once -- it
+% does not restore whatever SweepMode/SweepCycles you configured on
+% channels 5-10, so re-set those before running a sweep of your own.
 
 global smdata
 
@@ -93,7 +130,7 @@ switch ico(2)
     case 1
         switch ico(3)
             case 0 % get
-                val = str2double(query(tsl, ':WAV? NM'));
+                val = parseNumericResponse(query(tsl, ':WAV? NM'));
 
             case 1 % set (ramped)
                 if nargin < 3 || isempty(rate)
@@ -109,7 +146,7 @@ switch ico(2)
                 % tail.
                 waitSweepIdle(tsl, 30);
 
-                curr = str2double(query(tsl, ':WAV? NM'));
+                curr = parseNumericResponse(query(tsl, ':WAV? NM'));
                 if curr == val
                     val = 0;
                     return
@@ -120,33 +157,98 @@ switch ico(2)
 
                 speed = snapSweepSpeed(min(abs(rate), 200));
                 fprintf(tsl, ':WAV:SWE:MOD 1'); % force continuous one-way
+                % Force a SINGLE traversal. Both the TSL-775 manual and
+                % santec's own sample code state that ":WAV:SWE 1" always
+                % executes one scan and that :WAV:SWE:CYCLes applies only
+                % to ":WAV:SWE:REP" -- that is WRONG on this firmware
+                % (0045.0040.0016). Verified against hardware: with
+                % CYCL=3, ":WAV:SWE 1" ran three sweep phases (9.90 s for
+                % a 2 nm span at 1 nm/s) where CYCL=1 ran one (2.71 s).
+                % Left unforced, a point-to-point move silently inherits
+                % whatever CYCL channel 10 was last set to and takes CYCL
+                % times longer than the expt returned below -- so smset,
+                % which just pauses for expt and returns, would resume
+                % while the laser is still sweeping.
+                fprintf(tsl, ':WAV:SWE:CYCL 1');
                 scpiwrite(tsl, ':WAV:SWE:STAR %.4fNM', curr);
                 scpiwrite(tsl, ':WAV:SWE:STOP %.4fNM', val);
                 scpiwrite(tsl, ':WAV:SWE:SPE %g', speed); % nm/s: no unit suffix accepted
 
                 expt = abs(val - curr) / speed;
+                % Record the ramp duration so ico(3)=2 can report the
+                % time remaining (see the note there). rampEnd is NaN
+                % until the sweep actually starts.
+                smdata.inst(ico(1)).data.rampTime = expt;
+                smdata.inst(ico(1)).data.rampEnd  = NaN;
                 if rate > 0
                     drainErrors(tsl); % so a stale queue entry can't misfire the check below
                     fprintf(tsl, ':WAV:SWE 1'); % program and start now
                     checkSweepStarted(tsl, val, speed);
+                    smdata.inst(ico(1)).data.rampEnd = now + expt / (24*3600);
+                    % Block until the sweep has genuinely finished, then
+                    % report 0 so smset adds no further wait of its own.
+                    % The instrument needs a settling tail beyond the pure
+                    % travel time: measured at ~0.33 + 0.41/speed seconds
+                    % (0.75 s at 1 nm/s, 0.42 s at 5 nm/s, 0.37 s at
+                    % 10 nm/s), consistent with a fixed ~0.4 nm run-up/
+                    % decel margin traversed at the sweep rate plus fixed
+                    % command overhead. Returning expt instead would hand
+                    % control back mid-tail, so a scan that set a
+                    % wavelength and immediately read a detector would
+                    % sample at the wrong wavelength. Polling for the
+                    % actual state is exact, where a predicted pad would
+                    % silently undershoot at speeds or wavelength ranges
+                    % other than the ones measured here.
+                    waitSweepComplete(tsl, 30 + 3 * expt);
+                    expt = 0;
                 end
                 val = expt;
 
             case 2 % query remaining ramp time
-                stat = str2double(query(tsl, ':WAV:SWE?'));
-                if stat ~= 1
+                % Computed from the ramp start time recorded at set/trigger,
+                % NOT from the instrument's live position: ":WAV?" returns
+                % only the wavelength setpoint register and does NOT track
+                % during a continuous sweep. Verified against hardware --
+                % throughout a 1552->1557 nm sweep ":WAV? NM" stayed pinned
+                % at the pre-sweep value of 1554 and only jumped to 1557 at
+                % the end, so the previous abs(stop-curr)/speed form here
+                % returned a constant that never counted down.
+                % Note nothing in SM currently calls this: smset pauses for
+                % the ramp time returned by ico(3)=1 and returns, with its
+                % op=2 polling loop commented out.
+                stat = parseNumericResponse(query(tsl, ':WAV:SWE?'));
+                if stat == 0 || ~isfield(smdata.inst(ico(1)).data, 'rampEnd') ...
+                        || isnan(smdata.inst(ico(1)).data.rampEnd)
+                    % Idle, or running a sweep this driver did not start
+                    % (e.g. armed through channel 11 or 13) so there is no
+                    % reference start time to count down from.
                     val = 0;
                 else
-                    stop  = str2double(query(tsl, ':WAV:SWE:STOP? NM'));
-                    speed = str2double(query(tsl, ':WAV:SWE:SPE?'));
-                    curr  = str2double(query(tsl, ':WAV? NM'));
-                    val = abs(stop - curr) / speed;
+                    val = max(0, (smdata.inst(ico(1)).data.rampEnd - now) * 24 * 3600);
                 end
 
             case 3 % trigger a previously programmed (unstarted) sweep
+                % Deliberately does NOT re-force SweepCycles: triggering
+                % a multi-cycle (e.g. continuous two-way) sweep from a
+                % scan is a supported use, and forcing 1 here would
+                % silently reduce it to a single traversal.
+                %
+                % The consequence is that if SweepCycles is changed
+                % between the ico(3)=1 program and this trigger, the
+                % sweep runs CYCL times while rampTime still describes
+                % one traversal, so ico(3)=2 under-reports (measured:
+                % 9.94 s actual against 2.00 s predicted at CYCL=3).
+                % Harmless in SM: smset excludes negative-ramprate
+                % channels from its wait entirely (see smset.m, where
+                % rampchan is filtered to ramprate > 0), so nothing
+                % consumes that estimate on this path.
                 drainErrors(tsl);
                 fprintf(tsl, ':WAV:SWE 1');
                 checkSweepStarted(tsl, NaN, NaN);
+                if isfield(smdata.inst(ico(1)).data, 'rampTime')
+                    smdata.inst(ico(1)).data.rampEnd = ...
+                        now + smdata.inst(ico(1)).data.rampTime / (24*3600);
+                end
 
             otherwise
                 error('SantecTSL775: Operation not supported for Wavelength.');
@@ -156,7 +258,7 @@ switch ico(2)
     case 2
         switch ico(3)
             case 0 % get
-                val = str2double(query(tsl, ':POW?'));
+                val = parseNumericResponse(query(tsl, ':POW?'));
             case 1 % set
                 scpiwrite(tsl, ':POW %.2f', val);
             otherwise
@@ -167,7 +269,7 @@ switch ico(2)
     case 3
         switch ico(3)
             case 0 % get
-                val = str2double(query(tsl, ':POW:ACT?'));
+                val = parseNumericResponse(query(tsl, ':POW:ACT?'));
             otherwise
                 error('SantecTSL775: PowerActual is read-only.');
         end
@@ -176,7 +278,7 @@ switch ico(2)
     case 4
         switch ico(3)
             case 0 % get
-                val = str2double(query(tsl, ':POW:STAT?'));
+                val = parseNumericResponse(query(tsl, ':POW:STAT?'));
             case 1 % set
                 scpiwrite(tsl, ':POW:STAT %d', val ~= 0);
             otherwise
@@ -196,7 +298,7 @@ switch ico(2)
         idx = ico(2) - 4;
         switch ico(3)
             case 0 % get
-                val = str2double(query(tsl, queries{idx}));
+                val = parseNumericResponse(query(tsl, queries{idx}));
             case 1 % set
                 if idx == 3 % SweepSpeed: snap to nearest supported value
                     val = snapSweepSpeed(val);
@@ -210,9 +312,23 @@ switch ico(2)
     case 11
         switch ico(3)
             case 0 % get: 0=stopped,1=running,3=standby,4=preparing
-                val = str2double(query(tsl, ':WAV:SWE?'));
+                val = parseNumericResponse(query(tsl, ':WAV:SWE?'));
             case 1 % set: 0=stop, 1=start single scan
-                scpiwrite(tsl, ':WAV:SWE %d', val ~= 0);
+                if val ~= 0
+                    % A refused start is reported ONLY in the error queue
+                    % (see checkSweepStarted). Without this check the
+                    % command appears to succeed while the engine stays
+                    % stopped -- observed on hardware: a start was
+                    % refused here and this path returned silently, so
+                    % the sweep never ran and only a stray SweepState
+                    % read revealed it. A scan would have collected data
+                    % for a sweep that never happened.
+                    drainErrors(tsl);
+                    fprintf(tsl, ':WAV:SWE 1');
+                    checkSweepStarted(tsl, NaN, NaN);
+                else
+                    fprintf(tsl, ':WAV:SWE 0');
+                end
             otherwise
                 error('SantecTSL775: Operation not supported for SweepState.');
         end
@@ -221,7 +337,7 @@ switch ico(2)
     case 12
         switch ico(3)
             case 0 % get
-                val = str2double(query(tsl, ':WAV:SWE:STEP? NM'));
+                val = parseNumericResponse(query(tsl, ':WAV:SWE:STEP? NM'));
             case 1 % set
                 scpiwrite(tsl, ':WAV:SWE:STEP %.4fNM', val);
             otherwise
@@ -232,7 +348,9 @@ switch ico(2)
     case 13
         switch ico(3)
             case 3 % trigger
+                drainErrors(tsl);
                 fprintf(tsl, ':WAV:SWE:REP');
+                checkSweepStarted(tsl, NaN, NaN);
             otherwise
                 error('SantecTSL775: SweepRepeat only supports triggering (ico(3)=3).');
         end
@@ -250,7 +368,7 @@ switch ico(2)
         idx = ico(2) - 13;
         switch ico(3)
             case 0 % get
-                val = str2double(query(tsl, queries{idx}));
+                val = parseNumericResponse(query(tsl, queries{idx}));
                 if idx == 2 % TrigOutStep: response is always in meters
                     val = val * 1e9;
                 end
@@ -280,12 +398,21 @@ switch ico(2)
         end
 
     % --- 19: ReadoutPower (dBm), internal sweep log, read-only ---
-    % 32-bit IEEE floats in dBm regardless of command set.
+    % The TSL-775 manual claims this data is "32 bit IEEE Standard
+    % format", but that is WRONG for this instrument (TSL-775, firmware
+    % 0045.0040.0016, SCPI mode): the payload is little-endian SIGNED
+    % 32-BIT INTEGERS in units of 0.001 dB. Verified against hardware --
+    % a -5 dBm setpoint logged counts of -4997 +/- 7, and a 0 dBm
+    % setpoint logged counts of -3..+6 (matching :POW:ACT? = 0.003 dBm).
+    % Decoding the same bytes as float32 yields denormals and NaNs,
+    % because the words are small integers like 0x00000001 / 0xFFFFFFFD.
+    % Note channel 18 is genuinely IEEE float64, so the two logs do NOT
+    % share an encoding despite being aligned point-for-point.
     case 19
         switch ico(3)
             case 0 % get
                 waitSweepIdle(tsl, 120); % see channel 18
-                val = readBinaryBlock(tsl, ':READ:DATA:POW?', 'float32');
+                val = readBinaryBlock(tsl, ':READ:DATA:POW?', 'int32') / 1000;
             otherwise
                 error('SantecTSL775: ReadoutPower is read-only.');
         end
@@ -294,9 +421,91 @@ switch ico(2)
     case 20
         switch ico(3)
             case 0 % get
-                val = str2double(query(tsl, ':READ:POIN?'));
+                val = parseNumericResponse(query(tsl, ':READ:POIN?'));
             otherwise
                 error('SantecTSL775: ReadoutPoints is read-only.');
+        end
+
+    % --- 21: SweepDelay (s), wait between consecutive scans ---
+    % A persistent instrument setting and a silent source of dead time:
+    % its value is inserted into EVERY gap between cycles of a
+    % multi-cycle scan. Measured on hardware: DEL=0 gives ~0.1 s gaps,
+    % DEL=1 gives 1.12 s, DEL=2 gives 2.17 s. It survives power cycles
+    % and is invisible unless queried, so a value left over from an
+    % earlier session silently pads every repeat scan -- which is exactly
+    % what made an earlier 3-cycle run here show 1.09/1.16 s gaps where
+    % the same configuration later showed 0.09/0.12 s.
+    % smcSantecTSL775Init zeroes it on connect for this reason.
+    case 21
+        switch ico(3)
+            case 0 % get
+                val = parseNumericResponse(query(tsl, ':WAV:SWE:DEL?'));
+            case 1 % set
+                scpiwrite(tsl, ':WAV:SWE:DEL %.1f', val);
+            otherwise
+                error('SantecTSL775: Operation not supported for SweepDelay.');
+        end
+
+    % --- 22: SweepCount, scans completed in the current run, read-only ---
+    % Increments once per traversal, so in the two-way modes it counts
+    % each leg separately (see the note at channel 8). Useful for
+    % monitoring the progress of a long repeat scan.
+    case 22
+        switch ico(3)
+            case 0 % get
+                val = parseNumericResponse(query(tsl, ':WAV:SWE:COUN?'));
+            otherwise
+                error('SantecTSL775: SweepCount is read-only.');
+        end
+
+    % --- 23-26: Input trigger configuration ---
+    % These arm the laser to be STARTED by something else, as opposed to
+    % channels 14-17 which make the laser emit sync pulses. The standby
+    % flow for synchronising with an external instrument is:
+    %   1. configure the sweep (channels 5-10) and the output trigger
+    %      (14-17) so the partner instrument gets its clock;
+    %   2. arm the partner instrument;
+    %   3. TrigInStandby (25) = 1 -- the laser parks in SweepState 3,
+    %      "standing by trigger", instead of sweeping;
+    %   4. fire it with SoftTrigger (27) or an external edge on the rear
+    %      BNC (enable that with TrigInExternal, 23).
+    % Note TrigThrough (26) replicates an incoming trigger on the output
+    % port, for chaining a third instrument; the manual says to leave it
+    % OFF when the laser itself is the trigger source, as in sweep mode.
+    case {23, 24, 25, 26}
+        cmds    = {':TRIG:INP:EXT %d',  ':TRIG:INP:ACT %d', ...
+                   ':TRIG:INP:STAN %d', ':TRIG:THR %d'};
+        queries = {':TRIG:INP:EXT?',  ':TRIG:INP:ACT?', ...
+                   ':TRIG:INP:STAN?', ':TRIG:THR?'};
+        idx = ico(2) - 22;
+        switch ico(3)
+            case 0 % get
+                val = parseNumericResponse(query(tsl, queries{idx}));
+            case 1 % set
+                scpiwrite(tsl, cmds{idx}, val);
+            otherwise
+                error('SantecTSL775: Operation not supported for channel %d.', ico(2));
+        end
+
+    % --- 27: SoftTrigger, trigger-only: start a sweep from standby ---
+    % Deliberately SEPARATE from channel 1's ico(3)=3. That one sends
+    % ":WAV:SWE 1" to start a sweep by command; this sends the soft
+    % trigger that releases a sweep already parked in trigger standby
+    % (TrigInStandby, channel 25). They are different instrument paths
+    % and must not be conflated -- ":WAV:SWE 1" on a standing-by sweep
+    % is not the same operation.
+    %
+    % The command is ":TRIG:INP:SOFT" per the TSL-775 manual. Note that
+    % santec's own Python sample sends ":WAV:SWE:SOFT" instead, which
+    % does not appear in this manual's command list.
+    case 27
+        switch ico(3)
+            case 3 % trigger
+                drainErrors(tsl);
+                fprintf(tsl, ':TRIG:INP:SOFT');
+                checkSweepStarted(tsl, NaN, NaN);
+            otherwise
+                error('SantecTSL775: SoftTrigger only supports triggering (ico(3)=3).');
         end
 
     otherwise
@@ -310,6 +519,16 @@ function s = snapSweepSpeed(x)
 allowed = [0.5 1 2 5 10 20 50 100 200];
 [~, i] = min(abs(allowed - x));
 s = allowed(i);
+end
+
+function val = parseNumericResponse(response)
+% Parse a numeric SCPI response with an optional trailing unit suffix.
+tokens = regexp(strtrim(response), ...
+    '^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?', 'match', 'once');
+if isempty(tokens)
+    error('SantecTSL775: invalid numeric response: %s', strtrim(response));
+end
+val = str2double(tokens);
 end
 
 function waitSweepIdle(tsl, tmax)
@@ -328,6 +547,29 @@ while str2double(query(tsl, ':WAV:SWE?')) ~= 0
 end
 end
 
+function waitSweepComplete(tsl, tmax)
+% Wait for a just-started sweep to run to completion.
+%
+% Polls first for the engine to LEAVE the stopped state, then for it to
+% come back to stopped. The first poll matters: immediately after
+% ":WAV:SWE 1" the instrument can still report state 0 for a few
+% milliseconds, and waiting only for "state == 0" would then return
+% instantly, before the ramp had begun. In practice checkSweepStarted's
+% ":SYST:ERR?" round trip is enough for the state to already read 4
+% (preparing), but that is timing-dependent and not worth relying on.
+%
+% The wait-for-start poll is capped at 0.5 s so that a very short sweep
+% which finishes before it is ever observed running cannot stall here.
+t0 = now;
+while parseNumericResponse(query(tsl, ':WAV:SWE?')) == 0
+    if (now - t0) * 24 * 3600 > 0.5
+        break
+    end
+    pause(0.01);
+end
+waitSweepIdle(tsl, tmax);
+end
+
 function drainErrors(tsl)
 % Empty the instrument error queue so a stale entry from an earlier,
 % unrelated command cannot be mistaken for the outcome of the command
@@ -341,18 +583,44 @@ end
 end
 
 function checkSweepStarted(tsl, target, speed)
-% Query the error queue right after :WAV:SWE 1. The TSL-775 reports a
-% refused sweep start ONLY here (-200 "Execution error"); the command
-% itself gives no other indication, so without this check a refused set
-% silently leaves the wavelength unchanged. Known refusal causes: laser
-% output off, sweep engine busy, occasionally 200 nm/s over short spans.
+% Query the error queue right after a sweep start. The TSL-775 reports a
+% refused start ONLY here (-200 "Execution error"); the command itself
+% gives no other indication, so without this check a refused start
+% silently leaves the laser where it was.
+%
+% The trigger condition is NOT currently understood. Observed on this
+% firmware (0045.0040.0016): a cluster of -200 refusals occurred while
+% the laser output was off, and once the instrument started refusing it
+% kept refusing across several attempts -- including configurations that
+% had worked minutes earlier, and including one attempt after the output
+% was switched back on. It then cleared on its own and did not recur.
+%
+% Explicitly ruled out by experiment, so do not re-add these as causes:
+%   - wavelength out of range (limits are 1490-1630 nm; the refused
+%     endpoints were 1559/1560 nm, well inside)
+%   - "sweep start must equal the current wavelength when the output is
+%     off" (a refused start had STAR exactly equal to the current
+%     wavelength, with the output ON)
+%   - settling time after enabling the output (starts succeeded 0.9 s
+%     after output-on)
+%   - sweep span, speed, cycles, mode (all identical between a refused
+%     start and a successful repeat of the same configuration)
+%
+% Keep this check regardless of the cause: a refused start is reported
+% ONLY in the error queue, so without it the caller sees success while
+% the laser never moves, and a scan collects data for a sweep that never
+% happened.
 e = strtrim(query(tsl, ':SYST:ERR?'));
 if isempty(strfind(e, '+0,')) %#ok<STREMP>
     if isnan(target)
-        error('SantecTSL775: sweep start refused: %s (laser output off? sweep busy?)', e);
+        error(['SantecTSL775: sweep start refused: %s. Retrying usually clears ' ...
+            'it; if it persists, check the sweep range against 1490-1630 nm ' ...
+            'and that the output is on.'], e);
     else
-        error(['SantecTSL775: wavelength sweep to %.4f nm at %g nm/s refused: %s ' ...
-            '(laser output off? sweep busy?)'], target, speed, e);
+        error(['SantecTSL775: wavelength sweep to %.4f nm at %g nm/s refused: %s. ' ...
+            'Retrying usually clears it; if it persists, check the target ' ...
+            'against the 1490-1630 nm range and that the output is on.'], ...
+            target, speed, e);
     end
 end
 end
@@ -378,6 +646,8 @@ switch precision
         bpv = 8; casttype = 'double';
     case 'float32'
         bpv = 4; casttype = 'single';
+    case 'int32'
+        bpv = 4; casttype = 'int32';
     otherwise
         error('SantecTSL775: unsupported binary precision %s.', precision);
 end
