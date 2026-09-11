@@ -10,6 +10,8 @@ addpath('src\sm\');
 addpath('src\drivers\');
 addpath('examples\');
 addpath('src\utils\plotting\');
+addpath('src\utils\toolbox\');
+
 
 rehash path;
 global smdata;
