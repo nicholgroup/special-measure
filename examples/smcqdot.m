@@ -24,15 +24,30 @@ function [val, rate] = smcqdot(ico, val, rate)
 %   9  I     current through device (A, read-only)
 %  10  count dummy counter variable
 %  11  I_buf buffered current (A, read-only array)
-%            Fills one sample per op=3 trigger; returns array on op=0;
-%            resets on op=4 arm.  Use with smabufconfig2.
+%            Filled by a triggered ramp (see op 3), or one sample per op=3
+%            when nothing is armed; returns the array on op=0; resets on
+%            op=4 arm.  Use with smabufconfig2.
 %
 % Operation codes (ico(3)):
 %   0  GET       read channel value
-%   1  SET       write gate / bias voltage
-%   3  TRIGGER   append one I sample to I_buf (no-op on other channels)
+%   1  SET       write gate / bias voltage. Honors the ramprate argument:
+%                  rate infinite: set immediately, report 0 ramp time
+%                  rate > 0:      set immediately, report |dV|/rate as the
+%                                 ramp time so smset waits for it
+%                  rate < 0:      ARM a ramp from the current value to val
+%                                 and return WITHOUT moving the gate. The
+%                                 sweep happens on the next TRIGGER.
+%   3  TRIGGER   if a ramp is armed, sweep it and overwrite I_buf with one
+%                sample per configured point. Otherwise reset the buffer and
+%                append a single I sample (stepped-channel path).
 %   4  ARM       clear I_buf buffer (no-op on other channels)
 %   5  CONFIGURE set buffer size; val=npts, rate=rate; updates datadim
+%
+% Gate and bias channels (1-8) are registered with type == 1, so the driver
+% ramps them rather than smset stepping them, and a negative ramprate arms
+% rather than starts. That is the same contract as a DecaDAC held in its
+% trigmode -- see the "Autoramp and Negative Ramp Rates" section of
+% README.md. Channels 9-11 are read-only or counters and are type 0.
 %
 % Usage:
 %   smcqdot_setup();        % registers instrument and channels in smdata
@@ -69,6 +84,18 @@ if ~isfield(smdata.inst(inst_n).data, 'ibuf')
     smdata.inst(inst_n).data.ibuf      = [];
     smdata.inst(inst_n).data.ibuf_npts = 0;
 end
+if ~isfield(smdata.inst(inst_n).data, 'ramp')
+    % Armed-but-not-started ramps, one entry per channel. Populated by a
+    % negative ramprate on op 1, consumed by op 3.
+    smdata.inst(inst_n).data.ramp = struct('chan', {}, 'from', {}, 'to', {});
+end
+if ~isfield(smdata.inst(inst_n).data, 'ramp_done')
+    % True once a triggered ramp has filled the buffer for the current arm
+    % cycle. smatrigfn sends op 3 once per instrument/channel pair, so
+    % without this the second trigger of a burst would append a stray
+    % sample on top of the record the first one just laid down.
+    smdata.inst(inst_n).data.ramp_done = false;
+end
 
 switch op
     case 0  % GET
@@ -94,22 +121,76 @@ switch op
         if chan == I_IDX || chan == I_BUF_IDX
             error('smcqdot: channel %d is read-only', chan);
         end
+        if nargin < 3 || isempty(rate)
+            rate = Inf;
+        end
+        if rate == 0
+            error('smcqdot: cannot ramp channel %d at zero rate', chan);
+        end
+        curr = smdata.inst(inst_n).data.val(chan);
+
+        if rate < 0
+            % Negative rate: arm the ramp and return without moving the
+            % gate. The sweep happens on the next trigger (op 3). The
+            % returned ramp time is what the sweep WOULD take; smset
+            % discards it for non-blocking channels.
+            r = smdata.inst(inst_n).data.ramp;
+            r(end+1) = struct('chan', chan, 'from', curr, 'to', val);
+            smdata.inst(inst_n).data.ramp = r;
+            val = abs(val - curr) / abs(rate);
+            return
+        end
+
+        % Positive or infinite rate: move now and report the ramp time so
+        % smset can wait for it (zero when rate is infinite).
         smdata.inst(inst_n).data.val(chan) = val;
         I_now = computeCurrent(smdata.inst(inst_n).data.val, ...
                                    smdata.inst(inst_n).data.vth, K, R_MIN, R_MAX);
         smdata.inst(inst_n).data.ibuf(end+1) = I_now;
+        val = abs(val - curr) / rate;
 
-    case 3  % TRIGGER — append one I sample to ibuf (no-op on other channels)
-        smdata.inst(inst_n).data.ibuf = [];
-        if chan == I_BUF_IDX
-            I_now = computeCurrent(smdata.inst(inst_n).data.val, ...
-                                   smdata.inst(inst_n).data.vth, K, R_MIN, R_MAX);
-            smdata.inst(inst_n).data.ibuf(end+1) = I_now;
+    case 3  % TRIGGER
+        r = smdata.inst(inst_n).data.ramp;
+        if ~isempty(r)
+            % A ramp is armed: sweep every armed channel together and record
+            % one sample per configured point. The buffer is ASSIGNED, not
+            % appended to, so any stray samples left by the plain smset that
+            % smrun issues at the first point of the loop are discarded.
+            npts = max(smdata.inst(inst_n).data.ibuf_npts, 1);
+            vals = smdata.inst(inst_n).data.val;
+            buf  = zeros(1, npts);
+            for s = 1:npts
+                if npts == 1
+                    frac = 1;
+                else
+                    frac = (s - 1) / (npts - 1);
+                end
+                for m = 1:numel(r)
+                    vals(r(m).chan) = r(m).from + (r(m).to - r(m).from) * frac;
+                end
+                buf(s) = computeCurrent(vals, smdata.inst(inst_n).data.vth, ...
+                                        K, R_MIN, R_MAX);
+            end
+            smdata.inst(inst_n).data.val       = vals;   % ramp ends on target
+            smdata.inst(inst_n).data.ibuf      = buf;
+            smdata.inst(inst_n).data.ramp      = r([]);  % disarm
+            smdata.inst(inst_n).data.ramp_done = true;
+
+        elseif ~smdata.inst(inst_n).data.ramp_done
+            % Nothing armed: stepped-channel path, where the buffer fills one
+            % sample per smset instead. Reset here and seed one sample.
+            smdata.inst(inst_n).data.ibuf = [];
+            if chan == I_BUF_IDX
+                I_now = computeCurrent(smdata.inst(inst_n).data.val, ...
+                                       smdata.inst(inst_n).data.vth, K, R_MIN, R_MAX);
+                smdata.inst(inst_n).data.ibuf(end+1) = I_now;
+            end
         end
 
     case 4  % ARM — clear ibuf for new outer-loop point (no-op on other channels)
         if chan == I_BUF_IDX
-            smdata.inst(inst_n).data.ibuf = [];
+            smdata.inst(inst_n).data.ibuf      = [];
+            smdata.inst(inst_n).data.ramp_done = false;
         end
 
     case 5  % CONFIGURE — set buffer size and update datadim
@@ -124,6 +205,8 @@ switch op
             end
             smdata.inst(inst_n).data.ibuf_npts = npts;
             smdata.inst(inst_n).data.ibuf      = [];
+            smdata.inst(inst_n).data.ramp      = smdata.inst(inst_n).data.ramp([]);
+            smdata.inst(inst_n).data.ramp_done = false;
             smdata.inst(inst_n).datadim(I_BUF_IDX) = npts;
             val = npts;
         end

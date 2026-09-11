@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------------------
+# MATLAB
+# ---------------------------------------------------------------------------
+
+# Autosave / backup files
+*.asv
+*.m~
+*.mlx~
+*.autosave
+
+# Compiled MEX files (platform-specific binaries)
+*.mex
+*.mexa64
+*.mexmaci64
+*.mexmacia64
+*.mexw32
+*.mexw64
+*.o
+*.obj
+
+# MATLAB Coder / Simulink build artifacts
+slprj/
+sccprj/
+codegen/
+*.slxc
+*.req
+*.sldd
+
+# Simulink autosave
+*.slx.autosave
+*.mdl.autosave
+
+# Generated / cached files
+*.mat.bak
+
+# Run-time / session files
+*.mlsettings
+helpsearch*/
+
+# ---------------------------------------------------------------------------
+# Lab data — keep curated examples, ignore scratch acquisitions
+# ---------------------------------------------------------------------------
+# The examples/ folder holds curated demo data that IS tracked. Ignore .mat
+# files everywhere else (raw scans, cached scan data, dumped dictionaries).
+*.mat
+*.fig
+!examples/**/*.mat
+
+# Cached scan data written by cacheScanData.m
+sm_*.mat
+
+# ---------------------------------------------------------------------------
+# Editor / IDE
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------------
+# OS cruft
+# ---------------------------------------------------------------------------
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+
+CLAUDE.md
