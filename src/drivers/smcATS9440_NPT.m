@@ -157,8 +157,10 @@ switch ico(3)
                         data=buf.value(ico(2):2:bufLen-2+ico(2));
                         
                         %Uncomment for debugging.
-                        %mask=s.subs{1};
-                        %figure(555); clf; hold on; plot(data(1:1e4)); plot(mask(1:1e4).*3e4);
+                        if debug
+                            mask=s.subs{1};
+                            figure(555); clf; hold on; plot(data(1:1e4)); plot(mask(1:1e4).*3e4);
+                        end
                         
                         
                         if ~isempty(s.subs{1})
