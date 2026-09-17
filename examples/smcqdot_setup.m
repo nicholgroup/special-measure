@@ -38,12 +38,21 @@ smdata.inst(inst_n).name    = 'QDot';
 smdata.inst(inst_n).device  = 'mock_qdot';
 smdata.inst(inst_n).cntrlfn = @smcqdot;
 smdata.inst(inst_n).channels = char(chanNames);
-smdata.inst(inst_n).type=zeros(N_CHAN,1); % 1 for self ramping
+
+% type: 1 = self-ramping (the driver ramps), 0 = stepped by smset in its own
+% 10 ms loop. The seven gates and Vsd are self-ramping, like a real DAC
+% output; I, count and I_buf are read-only or scalar and stay 0. Only
+% type == 1 channels accept a negative ramprate -- see the "Autoramp and
+% Negative Ramp Rates" section of README.md.
+smdata.inst(inst_n).type = zeros(N_CHAN, 1);
+smdata.inst(inst_n).type(1:8) = 1;   % S SQ A1 A2 T1 P T2 Vsd
 
 smdata.inst(inst_n).data.val       = zeros(N_CHAN, 1);
 smdata.inst(inst_n).data.vth       = randn(N_GATES, 1) * V_TH_SPREAD + V_TH_CENTER;
 smdata.inst(inst_n).data.ibuf      = [];
 smdata.inst(inst_n).data.ibuf_npts = 0;
+smdata.inst(inst_n).data.ramp      = struct('chan', {}, 'from', {}, 'to', {});
+smdata.inst(inst_n).data.ramp_done = false;
 
 % datadim: 1 (scalar) for all channels; I_buf updated to npts on configure
 smdata.inst(inst_n).datadim = ones(N_CHAN, 1);

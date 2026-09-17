@@ -275,7 +275,7 @@ switch ico(2) % Channel
                 ziDAQ('setDouble', ['/' device '/imps/' imp_c '/voltage/range'], 3);
                 % turn on the 
                 ziDAQ('setDouble', ['/' device '/imps/' imp_c '/output/on'], 1);
-                ziDAQ('setDouble', ['/' device '/imps/' imp_c '/output/range'], 10);
+                ziDAQ('setDouble', ['/' device '/imps/' imp_c '/output/range'], 1);%Changed to 1 by DIO
                 ziDAQ('setDouble', ['/' device '/imps/' imp_c '/bias/enable'], 1);
 %                 
 %                 h = ziDAQ('sweep');

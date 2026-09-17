@@ -1,6 +1,18 @@
 
 function val = smcIPS12010GPIB(ico, val, rate)
 % Driver for IPS12010 (GPIB version)
+%
+% NEGATIVE RAMPRATE: configures but does not start. Sets A0 (hold), the rate
+% (T), and the target field (J), then deliberately withholds A1. The ramp
+% begins only when operation 3 fires A1 -- which is what a
+% scan.loops(1).trigfn = @smatrigfn does. See the 4/9/2010 note below.
+% This is the OPPOSITE of smcIPS12010.m, which has no rate < 0 branch and
+% always starts the ramp immediately. The two are not interchangeable in a
+% scan: a scan written for this driver will hold at the setpoint forever on
+% smcIPS12010, and one written for smcIPS12010 will start ramping the moment
+% smset is called here, ignoring your trigfn. Check which driver the
+% instrument is registered with in smdata.
+%
 % settings for GPIB:
 % usually board index is 0, address is 25
 % can change Timeout to 1

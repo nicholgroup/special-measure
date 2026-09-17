@@ -10,6 +10,8 @@ addpath('src\sm\');
 addpath('src\drivers\');
 addpath('examples\');
 addpath('src\utils\plotting\');
+addpath('src\utils\toolbox\');
+
 
 rehash path;
 global smdata;
@@ -88,24 +90,37 @@ smprintscan(scan2D);
 data = smrun(scan2D, smnext('channel_scan'));
 
 %% Buffered channel scan (2D)
-% Same geometry as above but uses I_buf channel for faster acquisition.
-% smabufconfig2 calls smcqdot op=5 to set buffer size, wires up trigger
-% (op=3 per inner step) and arm (op=4 per outer step) automatically.
+% Same geometry as above, but the inner loop ramps continuously and the
+% current is captured into the I_buf buffer instead of being read point by
+% point.
+%
+% The inner ramptime is NEGATIVE, which is what makes this a buffered scan
+% rather than a fast stepped one. A negative ramptime marks S as an autoramp
+% channel: smrun programs a single continuous sweep across the whole inner
+% range at the first inner point, and smset returns without waiting. smcqdot
+% ARMS that sweep rather than starting it -- the same contract as a DecaDAC
+% held in its trigmode. smabufconfig2's 'trig' installs smatrigfn on the
+% inner loop, whose op 3 then executes the sweep and fills I_buf with one
+% sample per point; its 'arm' clears the buffer (op 4) at each outer point.
+% See the "Autoramp and Negative Ramp Rates" section of README.md.
+%
+% This only works because smcqdot_setup registers the gates with type == 1.
+% A negative ramptime on a step channel is an error, not a slow scan.
 
 npts=16;
 scan2Dbuf = struct();
 scan2Dbuf.loops(1).rng      = [0 1];
 scan2Dbuf.loops(1).npoints  = npts;
 scan2Dbuf.loops(1).setchan  = 'S';
-scan2Dbuf.loops(1).getchan  = [];
-scan2Dbuf.loops(1).ramptime = 0.001; %keep this short for this example to make the buffer work
+scan2Dbuf.loops(1).getchan  = [];      % nothing read here; the buffer collects
+scan2Dbuf.loops(1).ramptime = -0.001;  % NEGATIVE = autoramp: arm, trigger, fill
 scan2Dbuf.loops(1).prefn    = struct([]);
 
 scan2Dbuf.loops(2).rng      = [0 1];
 scan2Dbuf.loops(2).npoints  = npts;
 scan2Dbuf.loops(2).setchan  = 'SQ';
-scan2Dbuf.loops(2).getchan  = 'I_buf';
-scan2Dbuf.loops(2).ramptime = 0.001; 
+scan2Dbuf.loops(2).getchan  = 'I_buf'; % one full inner record per outer point
+scan2Dbuf.loops(2).ramptime = 0.001;   % positive: stepped normally
 
 scan2Dbuf.configfn.fn   = @smabufconfig2;
 scan2Dbuf.configfn.args = {'trig arm', [], [], 2};

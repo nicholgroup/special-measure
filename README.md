@@ -22,6 +22,7 @@ special-measure/
     ├── drivers/    # Instrument drivers (~123 files, named smc*.m, one per instrument model)
     ├── utils
         ├── plotting/        # plotting utilities
+        ├── toolbox/        # sma utilities
         └── analysis/       # Analysis utilities
 ├── tests/
 ├── examples/
@@ -102,7 +103,7 @@ Each `scan.loops(i)` entry has:
 .getchan    — channel(s) to read at each point
 .rng        — [start, stop] or explicit vector of values
 .npoints    — number of points (if rng is [start, stop])
-.ramptime   — seconds per step; negative = initialize-only (ramp to end at first point)
+.ramptime   — seconds per step; negative = autoramp (see [Autoramp and Negative Ramp Rates](#autoramp-and-negative-ramp-rates))
 .trafofn    — transform function(s) mapping loop coordinate to channel value
 .prefn      — function(s) called before setting channels each step
 .postfn     — function(s) called after reading channels
@@ -116,17 +117,83 @@ Each `scan.loops(i)` entry has:
 
 ## Instrument Drivers
 
-The `channels/` directory contains 126+ instrument-specific driver files (`smc*.m`). Each driver implements a control function called by `smset`/`smget` via `smdata.inst(i).cntrlfn`.
+The `src/drivers/` directory contains 98 instrument-specific driver files (`smc*.m`). Each driver implements a control function called by `smset`/`smget` via `smdata.inst(i).cntrlfn`.
 
 Supported hardware includes:
 
 - **Lock-in amplifiers**: SR810, SR830, SR715, SR760, ZIMFIA
 - **Signal generators**: TSG4106A, N5183A, RSSMb100a
 - **Oscilloscopes**: TDS5104, LeCroy
-- **DACs / ADCs**: Yokogawa, Decada, NI DAQ cards
-- **Magnet controllers**: AMI420
+- **DACs / ADCs**: Yokogawa, DecaDAC, NI DAQ cards
+- **Magnet controllers**: AMI420, AMI430, IPS12010 (serial and GPIB variants), CS410V, Mercury 3-axis
 - **RF sources and mixers**: various custom configurations
 - **Multiplexers / custom lab hardware**: Keithley 7001, and others
+
+---
+
+## Autoramp and Negative Ramp Rates
+
+A **negative ramp rate is a flag, not a direction.** Its magnitude is the rate actually used; its sign tells `smset` *not to wait* for the ramp to finish.
+
+There are two quite different reasons to want that, and they ask different amounts of the driver:
+
+- **Just don't block.** A magnet ramp can take an hour, and you want the command line back while it runs: `smset('B', 1, -rate)` returns immediately and the field ramps in the background. This needs **nothing at all** from the driver — the non-blocking behavior lives entirely in `smset`, which simply drops the channel from its wait list. A driver that starts the ramp and returns is already correct here. The magnet drivers are all this case.
+- **Arm now, start later.** A buffered scan needs the sweep to begin on a hardware trigger, synchronized with acquisition, so `smset` must return *and* the ramp must not start yet. This does require driver support: an arm/trigger split, op 3, and for the DecaDACs a `trigmode`. The DAC drivers are this case.
+
+Both read `ramprate < 0`. The table below is really about which of the two a given driver implements.
+
+The second is what lets a scan sweep one axis continuously while acquiring on another, instead of stepping and settling at every point.
+
+### How it propagates
+
+1. `scan.loops(i).ramptime < 0` marks a setchannel as an **autoramp** channel in `smrun`.
+2. `smrun` computes `rate = abs(Δval) ./ (ramptime * (npoints-1))`. Because `ramptime` is negative, the rate comes out negative too — that is how the flag travels.
+3. `smrun` calls `smset` **once, at the first point of the loop**, with the endpoint of the entire sweep rather than the next step.
+4. `smset` clamps the *magnitude* against `rangeramp(:,3)` but multiplies the sign back on, hands the signed rate to the driver, then drops the channel from its wait list and returns immediately.
+5. For drivers that only *arm* the ramp, a `scan.loops(i).trigfn` (usually `smatrigfn`) delivers the trigger that starts it.
+
+Everything past step 4 is the driver's business. The only guarantee `smset` itself makes is that it returns without blocking.
+
+### Requires `type == 1`
+
+Negative rates are legal only on self-ramping channels. `smdata.inst(i).type` is a per-channel vector set when you register the instrument:
+
+```matlab
+smdata.inst(inst_n).type = zeros(N_CHAN, 1);  % 1 for self-ramping
+```
+
+A negative rate on a `type == 0` channel is a hard error (`Negative ramp rate for step channel.`) — `smset` paces those itself in a 10 ms software loop and has nothing to hand off to.
+
+### A negative divider inverts the flag
+
+The fourth element of `rangeramp` is a multiplier, and `smset` applies it to the ramp rate as well as the value:
+
+```matlab
+ramprate = ramprate .* rangeramp(:, 4);
+```
+
+That happens **after** the sign is reapplied and **before** channels are classified, so a channel registered with a *negative* divider silently flips the flag:
+
+- an autoramp (negative) rate becomes positive — `smset` blocks, the driver starts the ramp immediately, and the `trigfn` never gets its chance
+- an ordinary positive rate becomes negative — on a step channel that is the hard error above, raised by a scan that looks perfectly reasonable
+
+If a buffered scan mysteriously refuses to wait for its trigger, or a plain scan throws `Negative ramp rate for step channel.` with no negative rate anywhere in sight, check `rangeramp(:,4)` before anything else.
+
+### What each driver does with a negative rate
+
+| Driver | Behavior |
+| ------ | -------- |
+| `smcDecaDAC3/4/4old/HRL` | Arms the ramp using `smdata.inst(i).data.trigmode` as the gate command and omits the `G0` "go". Whether the ramp self-starts or waits for a hardware trigger is therefore a **per-instrument property of `trigmode`**, which you must set yourself — nothing in the repo populates it. A positive rate hardcodes `G8` … `G0` (start now). |
+| `smcYoko` | Programs the ramp only; the `RU2` that starts it arrives later via operation 3 (`smatrigYokoSR830` and similar). |
+| `smcIPS12010GPIB` | Programs the ramp and sends `A0` (hold), withholding the `A1`. Operation 3 sends `A1` to start it. Its header documents the intended pairing with `smatrigfn`. |
+| `smcIPS12010` | **Don't-block only.** Always sends `A1` and starts immediately; the sign's only effect is that `smset` returns. Correct for a background magnet ramp, but it cannot be armed, so a scan needing a trigger must use the GPIB driver. |
+| `smcTGQuad` | **Rewrites the operation.** `rate < 0` sets `ico(3) = 3`, turning the set into the driver's own triggered-ramp op. Its comment says this deliberately mimics the DecaDAC convention. |
+| `smcQuadDot` | Virtual instrument — **forwards** the sign to the underlying gate channels (`rates = abs(dG/time).*sign(rate)`) and re-enters through a nested `smset`, so the flag passes down a layer. |
+| `smcAMI420`, `smcAMI430` | **Don't-block only**, which is the normal way to drive these: `smset('B', target, -rate)` returns while the magnet ramps for however long it takes. `abs(rate)` guards the safety limit, AMI430 sends `RAMP` to start, and `smset` does the rest by not waiting. Neither implements op 3, so neither can be armed for a triggered scan. Note they pass the rate to the instrument *signed* (`rate*60`) rather than `abs(rate)*60`; that is what the working setups send, so the controller evidently tolerates it, but it is worth knowing if a rate ever fails to take. |
+
+> **Note the IPS divergence.** The two IPS drivers behave oppositely. A scan written against `smcIPS12010GPIB` will sit at hold forever if pointed at an instrument registered with `smcIPS12010`-style triggering, and one written against `smcIPS12010` will start ramping the moment `smset` is called, ignoring your `trigfn`. Check which driver is in your `smdata` before reusing a scan.
+
+An unlisted driver almost certainly gives you the don't-block behavior, since that costs it nothing. What you cannot assume is the arm/trigger half: if you need the ramp to wait for a trigger, check that the driver actually implements op 3 before building a scan around it. `smcCS410V` and `smcDecaDAC2` take `abs(rate)` and are well behaved; several drivers return `abs(val-curr)/rate` rather than `/abs(rate)`, so they report a negative ramp time on a negative rate — harmless, because `smset` discards the ramp time for exactly those channels.
 
 ---
 
@@ -223,6 +290,8 @@ Each `smdata.inst(i)` entry has:
 .name       — human-readable instrument name
 .device     — device type string (used by smabufconfig2 and similar helpers)
 .cntrlfn    — function handle: cntrlfn([inst, chan, op], val, rate)
+.type       — per-channel vector: 1 = self-ramping (driver ramps), 0 = stepped by smset.
+              Gates negative ramp rates; see Autoramp below.
 .channels   — cell array of channel name strings for this instrument
 .data       — arbitrary instrument state (VISA object, calibration, buffer state, etc.)
 .datadim    — vector of output sizes per channel (1 = scalar; N = buffered array of length N)

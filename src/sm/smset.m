@@ -5,17 +5,34 @@ function smset(channels, vals, ramprate)
 % Channels can be a cell or char array with channel names, or a vector
 % with channel numbers.
 % vals is a vector with one element for each channel.
-% ramprate is used instead of instrument default if given, finite,     
-% and smaller than default. A negative ramprate prevents
-% waiting for ramping to finish for self ramping channels (smdata.inst type = 1).
-% (This feature is mainly used by smrun).
+% ramprate is used instead of the instrument default if given and finite.
+% Its magnitude is clamped to the channel maximum in rangeramp(:,3).
+%
+% NEGATIVE RAMPRATE
+% The sign is a flag, not a direction. The magnitude is the rate actually
+% used; the negative sign means smset does not wait for the ramp to finish
+% and returns as soon as the driver call does. Legal only for self-ramping
+% channels (smdata.inst.type == 1) -- a negative rate on a step channel is
+% an error.
+% smset always calls the driver. What varies between instruments is whether
+% that call starts the ramp or only arms it to await a hardware trigger, and
+% for the DecaDACs which of the two happens is set by the per-instrument
+% field smdata.inst(i).data.trigmode. See the "Autoramp and Negative Ramp
+% Rates" section of README.md for the per-driver table.
+% Mainly used by smrun, which derives the negative rate from a negative
+% scan.loops(i).ramptime.
+% Beware the divider: rangeramp(:,4) is applied to the ramp rate as well as
+% the value, after the sign is reapplied and before channels are classified.
+% A negative divider therefore inverts the flag -- an autoramp rate becomes
+% positive (smset blocks and the trigfn never fires) and an ordinary rate
+% becomes negative (a step channel then errors).
+%
 % After checking that vals and ramprates given are within bounds of
-% rangeramp, divides channels into stepchans, setchans, rampchans. 
-% setchans have infinite ramprate and are just to set to final value. 
-% stepchans are stepped every 10 ms to final value, waiting correct time
-% for ramprate. 
-% rampchans have ramping done by the driver. If a negative ramprate is
-% given, note that 
+% rangeramp, classifies channels:
+%   rampchans (type == 1) have ramping done by the driver.
+%   stepchans (type == 0) are stepped every 10 ms to the final value,
+%     waiting the correct time for ramprate.
+%   setchans (non-finite ramprate) are set straight to the final value.
 
 global smdata;
 

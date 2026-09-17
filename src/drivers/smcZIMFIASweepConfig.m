@@ -13,7 +13,7 @@ smdata.inst(ico(1)).data.bstart=scan.loops(1).rng(1);
 smdata.inst(ico(1)).data.bstop=scan.loops(1).rng(2);
 smdata.inst(ico(1)).data.npts=scan.loops(1).npoints;
 smdata.inst(ico(1)).data.nsample=1;%10000;
-smdata.inst(ico(1)).data.omegas=150; % unit in dB
+smdata.inst(ico(1)).data.omegas=120; % unit in dB
 %smdata.inst(ico(1)).data.Vtest=0.1; % unit in V %JMN: Let's use special
 %measure for this.
 scan.loops(1).trafofn=[];

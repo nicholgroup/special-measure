@@ -1,26 +1,41 @@
 function scan = smabufconfig2(scan, ctrl, getchanInd, config, loop)
-% scan = smabufconfig2(scan, cntrl, getrng, setrng, loop)
+% scan = smabufconfig2(scan, ctrl, getchanInd, config, loop)
 % Configure buffered acquisition for fastest loop using drivers. Usually
-% used as configfn. 
+% used as configfn.
 % Supersedes smarampconfig/smabufconfig if driver provides this
 % functionality.
-% Typically includes triggering, arming, and configuring. Flow is: 
+% Typically includes triggering, arming, and configuring. Flow is:
 % At beginning of scan, when smabufconfig called, call cntrlfn with op 5 to
 % configure the readout. At beginning of each outer loop point (loop with
 % getchan), instrument armed. On first point of each inner loop point,
-% instrument triggered along w/ setchans that ramp. 
+% instrument triggered along w/ setchans that ramp.
 %
-% ctrl:  trig : use smatrigfn for triggering
-%         arm: use smatrigfn to arm insts in loops(2).prefn(1) using arg 4
+% ctrl:  space-separated option string, default ''.
+%         trig: use smatrigfn for triggering. Installs it as
+%         loops(loop-1).trigfn, OVERWRITING any trigfn already there. Omit
+%         when the ramp is started by hardware (e.g. an AWG marker).
+%         arm: use smatrigfn to arm insts in loops(loop).prefn(1) using arg 4
 %         of ctrl function
-%         fast: Acquire buffered date in 1st loop. Hence, don't use rate and time of first loop for
+%         fast: Acquire buffered data in 1st loop. Hence, don't use rate and time of first loop for
 %         timing. Config gives  [npts, rate, nrec(optional)]
 %         end: when used with arm, arm in a new prefn in the readout loop.
-%         Otherwise uses the first one. 
-% getchanInd: indices to loops(2).getchan that do buffered readout (and must be armed, triggered). 
-% Config: indices of setchans in inner loop to trigger, unless 'fast' (see above). 
-% loop to perform buffered readout on. Default readout loop is 2, unless 'fast' given, in which case loop is 1. 
-% Possible extensions (not implemented): 
+%         Otherwise uses the first one.
+% getchanInd: indices to loops(loop).getchan that do buffered readout (and must be armed, triggered).
+%         Default (empty or 0) is all getchans on the readout loop.
+% config: indices of setchans in inner loop to trigger (default all), unless 'fast' (see above).
+% loop: loop to perform buffered readout on. Default readout loop is 2, unless 'fast' given, in which case loop is 1.
+%         loop = 1 without 'fast' is an error.
+%
+% Side effects on the ramped loop (loop-1), non-'fast' path: npoints and
+% ramptime are OVERWRITTEN with the record length and rate the driver
+% actually returns from op 5 -- the values in the scan struct are a request,
+% not a guarantee. The sign of ramptime is preserved, so a negative
+% (autoramp) ramptime stays negative; see the "Autoramp and Negative Ramp
+% Rates" section of README.md. ramptime must be nonempty and is expected to
+% be negative for buffered acquisition, since the inner loop has to ramp
+% continuously rather than step point by point.
+%
+% Possible extensions (not implemented):
 % - configure decimation (see smarampconfig for code)
 
 global smdata;

@@ -1,4 +1,18 @@
 function val = smcIPS12010(ico, val, rate)
+% Driver for IPS12010 (ISOBUS/serial version; commands are prefixed with
+% @<address>). See also smcIPS12010GPIB.m for the GPIB version, which is NOT
+% a drop-in equivalent -- see below.
+%
+% NEGATIVE RAMPRATE: ignored. There is no rate < 0 branch here; A1 is always
+% sent and the ramp always starts immediately. The only effect of a negative
+% rate is that smset itself returns without waiting. This driver also
+% implements no operation 3 (trigger) or 4 (arm), so it cannot be armed or
+% hardware-triggered, and will error under smatrigfn or smabufconfig2. Use
+% smcIPS12010GPIB.m if you need a held-then-triggered ramp.
+%
+% Note the returned ramp time is abs(val-curr)/rate rather than /abs(rate),
+% so it is negative for a negative rate. Harmless in practice, since smset
+% discards the ramp time for exactly those channels.
 
 global smdata;
 IPSaddress = 1; %default for oxford
