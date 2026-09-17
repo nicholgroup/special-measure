@@ -58,14 +58,13 @@ switch ico(2)
         switch ico(3)
             case 0 % get
                 val = str2double(query(pm, 'SENS1:AVER?'));
-            case 1 % set: accepts integer count or 'low'/'medium'/'high'
-                if ischar(val) || isstring(val)
-                    presets = {'low', 'medium', 'high'};
-                    presetValues = [1, 10, 100];
-                    val = presetValues(strcmpi(char(val), presets));
-                    if isempty(val)
-                        error('PM61C: Unknown averaging preset.');
-                    end
+            case 1 % set: integer count, 1..5000
+                % Text presets are deliberately not accepted: smset does
+                % arithmetic on vals before the driver is called, so a char
+                % array silently arrives here as its character codes.
+                if ~isnumeric(val)
+                    error(['PM61C: Averaging must be numeric (1 through ' ...
+                        '5000); text presets are not supported by smset.']);
                 end
                 val = round(val);
                 if ~isscalar(val) || ~isfinite(val) || val < 1 || val > 5000
