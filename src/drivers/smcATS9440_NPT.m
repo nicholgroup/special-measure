@@ -39,7 +39,7 @@ global smdata;
 maxbuf=64;
 extrabuf=16;%40;
 extracap=4;
-debug = true;
+debug = false;
 
 if debug 
     disp(ico);
