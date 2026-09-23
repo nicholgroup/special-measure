@@ -23,7 +23,7 @@ global smdata;
 maxbuf=64;
 extrabuf=16;%40;
 extracap=4;
-debug = true;
+debug = false;
 
 if debug
     fprintf('\nATS9440 normal driver call: ico=[%s]\n', num2str(ico));
